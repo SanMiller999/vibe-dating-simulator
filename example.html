@@ -4,42 +4,53 @@
       <b>Vibe Dating Simulator</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
+
     <div class="inline-drawer-content">
-      <div class="vibe-settings-section">
-        <div class="vibe-settings-section-title">Виджет</div>
+      <div class="vibe-settings-section vibe-widget-section">
+        <button id="vibe_widget_settings_toggle"
+                type="button"
+                class="vibe-settings-collapsible-button"
+                aria-expanded="false">
+          <span class="vibe-settings-section-title">Виджет</span>
+          <span class="vibe-settings-collapsible-chevron">⌄</span>
+        </button>
 
-        <label class="checkbox_label">
-          <input id="vibe_widget_enabled" type="checkbox" checked />
-          <span>Показывать плавающий виджет</span>
-        </label>
+        <div id="vibe_widget_settings_body" class="vibe-settings-collapsible-body" hidden>
+          <label class="checkbox_label">
+            <input id="vibe_widget_enabled" type="checkbox" checked />
+            <span>Показывать плавающий виджет</span>
+          </label>
 
-        <div class="vibe-widget-settings-preview">
-          <img src="scripts/extensions/third-party/vibe-dating-simulator/assets/vibe-widget-icon.png"
-               alt="Иконка Vibe">
-          <div>
-            <div class="vibe-settings-caption">Плавающий виджет</div>
+          <div class="vibe-widget-settings-preview">
+            <img src="scripts/extensions/third-party/vibe-dating-simulator/assets/vibe-widget-icon.png"
+                 alt="Иконка Vibe">
+            <div>
+              <div class="vibe-settings-caption">Плавающий виджет</div>
+              <div class="vibe-settings-hint">
+                Короткий тап — открыть Vibe. Нажатие с удержанием — переместить.
+              </div>
+            </div>
+          </div>
+
+          <div class="vibe-slider-row">
+            <label for="vibe_widget_size">Размер:</label>
+            <input id="vibe_widget_size"
+                   type="range"
+                   min="24"
+                   max="160"
+                   step="1"
+                   value="46" />
+            <output id="vibe_widget_size_value">46px</output>
+          </div>
+
+          <div class="vibe-settings-buttons">
+            <input id="vibe_find_widget_button"
+                   class="menu_button"
+                   type="button"
+                   value="Поиск" />
           </div>
         </div>
-
-        <div class="vibe-slider-row">
-          <label for="vibe_widget_size">Размер:</label>
-          <input id="vibe_widget_size"
-                 type="range"
-                 min="24"
-                 max="160"
-                 step="1"
-                 value="46" />
-          <output id="vibe_widget_size_value">46px</output>
-        </div>
-
-        <div class="vibe-settings-buttons">
-          <input id="vibe_find_widget_button"
-                 class="menu_button"
-                 type="submit"
-                 value="Поиск" />
-        </div>
-      </div>
-
+            </div>
 
       <div class="vibe-settings-section vibe-memory-section">
         <div class="vibe-settings-section-title">Память и AI</div>
@@ -115,7 +126,7 @@
       <div style="margin-top:12px;">
         <input id="vibe_open_button"
                class="menu_button"
-               type="submit"
+               type="button"
                value="Открыть Vibe" />
       </div>
     </div>

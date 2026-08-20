@@ -627,3 +627,49 @@
 .vibe-memory-note {
   padding-top: 4px;
 }
+
+.vibe-floating-widget.vibe-widget-notify .vibe-floating-widget-image {
+  filter: drop-shadow(0 0 7px rgba(216,90,129,.82));
+}
+
+#vibe-floating-widget {
+  -webkit-touch-callout: none;
+}
+
+
+.vibe-widget-section {
+  padding-top: 0;
+}
+
+.vibe-settings-collapsible-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vibe-settings-collapsible-button .vibe-settings-section-title {
+  margin: 0;
+}
+
+.vibe-settings-collapsible-chevron {
+  font-size: 18px;
+  line-height: 1;
+  opacity: .7;
+  transition: transform .15s ease;
+}
+
+.vibe-settings-collapsible-button[aria-expanded="true"] .vibe-settings-collapsible-chevron {
+  transform: translateY(1px);
+}
+
+.vibe-settings-collapsible-body {
+  margin-top: 10px;
+}

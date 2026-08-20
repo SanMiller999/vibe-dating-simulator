@@ -5,6 +5,8 @@ const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
 const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
+const vibeChatsIconPath = `${extensionFolderPath}/assets/vibe-chats-icon.png`;
+const notificationsIconPath = `${extensionFolderPath}/assets/vibe-notifications-icon.png`;
 const vibeProfileIconPath = `${extensionFolderPath}/assets/vibe-profile-icon.png`;
 
 
@@ -69,7 +71,6 @@ const state = {
   currentIndex: 0,
   liked: [],
   chats: {},
-  unreadCount: 0,
 };
 
 function ensureSettings() {
@@ -281,14 +282,17 @@ function createWidget() {
 
 
 
-function getUnreadCount() {
-  return Math.max(0, Number(state.unreadCount) || 0);
+
+function getTotalUnreadCount() {
+  return Object.values(state.chats).reduce((total, chat) => {
+    return total + Math.max(0, Number(chat.unread) || 0);
+  }, 0);
 }
 
 function updateUnreadUI() {
-  const count = getUnreadCount();
+  const count = getTotalUnreadCount();
 
-  // Floating widget badge
+  // Floating widget badge + persistent glow while unread messages exist.
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
     const badge = widget.find(".vibe-widget-badge");
@@ -300,11 +304,13 @@ function updateUnreadUI() {
       badge.text(count > 99 ? "99+" : String(count))
         .attr("aria-hidden", "false")
         .show();
+
+      // Keep the notification state active until the unread chat(s) are opened.
       widget.addClass("vibe-widget-notify");
     }
   }
 
-  // Bottom navigation badge for the Notifications tab.
+  // Bottom navigation badge uses exactly the same total unread count.
   const notificationButton = $('.vibe-nav-button[data-tab="notifications"]');
   if (notificationButton.length) {
     let badge = notificationButton.find(".vibe-nav-badge");
@@ -324,17 +330,40 @@ function updateUnreadUI() {
   }
 }
 
-function markMessagesRead() {
-  state.unreadCount = 0;
+function ensureChat(id) {
+  if (!state.chats[id]) {
+    state.chats[id] = {
+      messages: [],
+      unread: 0,
+    };
+  }
+
+  // Backward compatibility with any old in-memory shape.
+  if (Array.isArray(state.chats[id])) {
+    state.chats[id] = {
+      messages: state.chats[id],
+      unread: 0,
+    };
+  }
+
+  return state.chats[id];
+}
+
+function markChatRead(id) {
+  const chat = ensureChat(id);
+  chat.unread = 0;
   updateUnreadUI();
 }
 
-function addUnreadMessage() {
-  state.unreadCount += 1;
+function addIncomingMessage(id, text) {
+  const chat = ensureChat(id);
+  chat.messages.push({ from: "them", text, timestamp: Date.now() });
+  chat.unread += 1;
   updateUnreadUI();
 
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
+    // A brief pulse on arrival, then the glow remains until the chat is read.
     widget.removeClass("vibe-widget-pulse");
     void widget[0].offsetWidth;
     widget.addClass("vibe-widget-pulse");
@@ -393,6 +422,7 @@ function bindWidgetPointerEvents() {
 
   widget.addEventListener("pointerdown", (event) => {
     if (!["touch", "mouse", "pen"].includes(event.pointerType)) return;
+    event.preventDefault();
 
     pointerId = event.pointerId;
     widget.setPointerCapture?.(pointerId);
@@ -464,6 +494,10 @@ function bindWidgetPointerEvents() {
 
   widget.addEventListener("pointerup", finishPointer);
   widget.addEventListener("pointercancel", finishPointer);
+  widget.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
 }
 
 function escapeHtml(value) {
@@ -499,7 +533,6 @@ function profileCard(profile) {
 }
 
 function renderApp() {
-  markMessagesRead();
   $("#vibe-overlay").remove();
 
   $("body").append(`
@@ -555,10 +588,12 @@ function showFeed() {
 
   $("#vibe_like").on("click", () => {
     state.liked.push(profile.id);
-    state.chats[profile.id] = [{ from: "them", text: profile.firstMessage }];
+    const chat = ensureChat(profile.id);
+    chat.messages.push({ from: "them", text: profile.firstMessage, timestamp: Date.now() });
+    chat.unread += 1;
 
+    updateUnreadUI();
     showToast("💕 Match", `У вас совпадение с ${profile.name}!`);
-    addUnreadMessage();
 
     state.currentIndex++;
     showChat(profile);
@@ -566,8 +601,9 @@ function showFeed() {
 }
 
 function showChat(profile) {
-  markMessagesRead();
-  const messages = state.chats[profile.id] || [];
+  const chat = ensureChat(profile.id);
+  markChatRead(profile.id);
+  const messages = chat.messages;
 
   $("#vibe_content").html(`
     <div class="vibe-chat-header">
@@ -600,10 +636,12 @@ function showChat(profile) {
 
     if (!text) return;
 
-    state.chats[profile.id].push({ from: "me", text });
-    state.chats[profile.id].push({
+    const chat = ensureChat(profile.id);
+    chat.messages.push({ from: "me", text, timestamp: Date.now() });
+    chat.messages.push({
       from: "them",
-      text: "Хаха :) Расскажи немного о себе?"
+      text: "Хаха :) Расскажи немного о себе?",
+      timestamp: Date.now()
     });
 
     showChat(profile);
@@ -617,7 +655,6 @@ function showChat(profile) {
 }
 
 function showChats() {
-  markMessagesRead();
   const entries = Object.keys(state.chats);
 
   $("#vibe_content").html(`
@@ -627,7 +664,8 @@ function showChats() {
       entries.length
         ? entries.map(id => {
             const p = profiles.find(x => x.id === id);
-            const last = state.chats[id][state.chats[id].length - 1];
+            const chat = ensureChat(id);
+            const last = chat.messages[chat.messages.length - 1];
 
             return `
               <button class="vibe-chat-row" data-profile="${escapeHtml(id)}">
@@ -664,16 +702,20 @@ function startSimulatedIncomingMessages() {
 
   simulatedIncomingTimer = setInterval(() => {
     const chance = Math.random();
-    if (chance < 0.35) {
-      addUnreadMessage();
-      showToast("Новое сообщение", "У вас новый входящий чат");
-    }
+    if (chance >= 0.35) return;
+
+    const existingIds = Object.keys(state.chats);
+    const profile = profiles.find(p => existingIds.includes(p.id)) || profiles[0];
+
+    ensureChat(profile.id);
+    addIncomingMessage(profile.id, profile.firstMessage);
+    showToast("Новое сообщение", `Новое сообщение от ${profile.name}`);
   }, 45000);
 }
 
 function showNotifications() {
-  markMessagesRead();
   const count = state.liked.length;
+  const unread = getTotalUnreadCount();
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Уведомления</div>
@@ -681,12 +723,14 @@ function showNotifications() {
     <div class="vibe-notification">
       <div class="vibe-notification-icon"><img src="${notificationsIconPath}" alt=""></div>
       <div>
-        <strong>${count ? count + " новое совпадение" : "Пока тихо"}</strong>
+        <strong>${unread ? `${unread} непрочитанных сообщения` : (count ? count + " новое совпадение" : "Пока тихо")}</strong>
         <div>
           ${
-            count
-              ? "Откройте раздел «Чаты», чтобы продолжить знакомство."
-              : "Когда кто-нибудь проявит интерес, он появится здесь."
+            unread
+              ? "Откройте нужный чат, чтобы прочитать сообщения."
+              : (count
+                  ? "Откройте раздел «Чаты», чтобы продолжить знакомство."
+                  : "Когда кто-нибудь проявит интерес, он появится здесь.")
           }
         </div>
       </div>
@@ -759,8 +803,28 @@ jQuery(async () => {
     updateWidget();
   });
 
-  $("#vibe_open_button").on("click", renderApp);
-  $("#vibe_find_widget_button").on("click", () => {
+
+  $("#vibe_widget_settings_toggle").on("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const body = $("#vibe_widget_settings_body");
+    const button = $(this);
+    const expanded = button.attr("aria-expanded") === "true";
+
+    button.attr("aria-expanded", String(!expanded));
+    body.prop("hidden", expanded);
+    button.find(".vibe-settings-collapsible-chevron").text(expanded ? "⌄" : "⌃");
+  });
+
+  $("#vibe_open_button").on("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    renderApp();
+  });
+  $("#vibe_find_widget_button").on("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
     searchWidget();
   });
 
