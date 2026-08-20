@@ -188,6 +188,29 @@ function getWidgetBounds(size) {
   return { minX: margin, minY: margin, maxX, maxY };
 }
 
+
+function positionWidgetBadge() {
+  const widget = document.getElementById("vibe-floating-widget");
+  const badge = widget?.querySelector(".vibe-widget-badge");
+  if (!widget || !badge) return;
+
+  const rect = widget.getBoundingClientRect();
+  const badgeWidth = Math.max(14, badge.offsetWidth || 14);
+  const margin = 4;
+
+  // Prefer the right side of the icon. If it would leave the viewport,
+  // switch to the left side.
+  if (rect.right + badgeWidth + margin <= window.innerWidth) {
+    badge.style.left = "calc(100% + 4px)";
+    badge.style.right = "auto";
+  } else {
+    badge.style.right = "calc(100% + 4px)";
+    badge.style.left = "auto";
+  }
+
+  badge.style.top = "-3px";
+}
+
 function applyWidgetPosition() {
   const settings = extension_settings[extensionName];
   const widget = $("#vibe-floating-widget");
@@ -272,7 +295,7 @@ function createWidget() {
       <img class="vibe-floating-widget-image"
            src="${widgetIconPath}"
            alt="">
-      <span class="vibe-widget-badge" aria-label="Новые чаты">0</span>
+      <span class="vibe-count-badge vibe-widget-badge" aria-label="Новые чаты">0</span>
     </button>
   `);
 
@@ -316,7 +339,7 @@ function updateUnreadUI() {
     let badge = notificationButton.find(".vibe-nav-badge");
 
     if (!badge.length) {
-      notificationButton.append('<span class="vibe-nav-badge" aria-label="Непрочитанные сообщения"></span>');
+      notificationButton.append('<span class="vibe-count-badge vibe-nav-badge" aria-label="Непрочитанные сообщения"></span>');
       badge = notificationButton.find(".vibe-nav-badge");
     }
 
@@ -328,6 +351,8 @@ function updateUnreadUI() {
         .show();
     }
   }
+
+  positionWidgetBadge();
 }
 
 function ensureChat(id) {
@@ -357,7 +382,12 @@ function markChatRead(id) {
 
 function addIncomingMessage(id, text) {
   const chat = ensureChat(id);
-  chat.messages.push({ from: "them", text, timestamp: Date.now() });
+  chat.messages.push({
+    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    from: "them",
+    text,
+    timestamp: Date.now()
+  });
   chat.unread += 1;
   updateUnreadUI();
 
@@ -693,26 +723,6 @@ function showChats() {
 }
 
 
-let simulatedIncomingTimer = null;
-
-function startSimulatedIncomingMessages() {
-  if (simulatedIncomingTimer) {
-    clearInterval(simulatedIncomingTimer);
-  }
-
-  simulatedIncomingTimer = setInterval(() => {
-    const chance = Math.random();
-    if (chance >= 0.35) return;
-
-    const existingIds = Object.keys(state.chats);
-    const profile = profiles.find(p => existingIds.includes(p.id)) || profiles[0];
-
-    ensureChat(profile.id);
-    addIncomingMessage(profile.id, profile.firstMessage);
-    showToast("Новое сообщение", `Новое сообщение от ${profile.name}`);
-  }, 45000);
-}
-
 function showNotifications() {
   const count = state.liked.length;
   const unread = getTotalUnreadCount();
@@ -817,6 +827,20 @@ jQuery(async () => {
     button.find(".vibe-settings-collapsible-chevron").text(expanded ? "⌄" : "⌃");
   });
 
+
+  $("#vibe_memory_settings_toggle").on("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const body = $("#vibe_memory_settings_body");
+    const button = $(this);
+    const expanded = button.attr("aria-expanded") === "true";
+
+    button.attr("aria-expanded", String(!expanded));
+    body.prop("hidden", expanded);
+    button.find(".vibe-settings-collapsible-chevron").text(expanded ? "⌄" : "⌃");
+  });
+
   $("#vibe_open_button").on("click", function (event) {
     event.preventDefault();
     event.stopPropagation();
@@ -831,11 +855,11 @@ jQuery(async () => {
   $(window).on("resize", () => {
     if ($("#vibe-floating-widget").length) {
       applyWidgetPosition();
+      positionWidgetBadge();
       saveSettingsDebounced();
     }
   });
 
   updateWidget();
   updateUnreadUI();
-  startSimulatedIncomingMessages();
 });

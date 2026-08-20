@@ -304,21 +304,37 @@
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  align-items: stretch;
   background: #fff;
   border-top: 1px solid #e8e8eb;
-  padding: 6px 4px calc(7px + env(safe-area-inset-bottom));
+  padding: 7px 6px calc(9px + env(safe-area-inset-bottom));
+  min-height: 118px;
+  gap: 2px;
 }
 
 .vibe-nav-button {
+  position: relative;
+  min-width: 0;
+  min-height: 104px;
   color: #777;
+  border: 0;
+  background: transparent;
   font-size: 18px;
-  padding: 6px 3px 4px;
+  padding: 2px 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 16px;
 }
 
 .vibe-nav-button span {
   display: block;
-  font-size: 10px;
-  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.05;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .vibe-nav-active {
@@ -513,13 +529,6 @@
 }
 
 
-.vibe-nav-image-icon {
-  display: block;
-  width: 21px;
-  height: 21px;
-  margin: 0 auto;
-  object-fit: contain;
-}
 
 .vibe-notification-icon {
   width: 42px;
@@ -551,13 +560,6 @@
   margin: 0 auto 14px;
 }
 
-.vibe-nav-image-icon {
-  display: block;
-  width: 24px;
-  height: 24px;
-  margin: 0 auto;
-  object-fit: contain;
-}
 
 .vibe-my-profile-icon {
   display: block;
@@ -672,4 +674,168 @@
 
 .vibe-settings-collapsible-body {
   margin-top: 10px;
+}
+
+/* Unified, larger bottom navigation icons */
+
+/* Notification badge: deliberately smaller than the icon */
+.vibe-nav-button[data-tab="notifications"] {
+  position: relative;
+}
+
+.vibe-nav-badge {
+  position: absolute;
+  top: 2px;
+  left: calc(50% + 10px);
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #d85a81;
+  color: #fff;
+  border: 1.5px solid #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 1px 5px rgba(0,0,0,.20);
+  pointer-events: none;
+  z-index: 3;
+}
+
+
+
+.vibe-floating-widget.vibe-widget-notify .vibe-floating-widget-image {
+  filter: drop-shadow(0 0 7px rgba(216,90,129,.82));
+}
+
+/* Collapsible settings sections */
+.vibe-settings-collapsible-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.vibe-settings-collapsible-button .vibe-settings-section-title {
+  margin: 0;
+}
+
+.vibe-settings-collapsible-chevron {
+  font-size: 18px;
+  line-height: 1;
+  opacity: .7;
+  transition: transform .15s ease;
+}
+
+.vibe-settings-collapsible-body {
+  margin-top: 10px;
+}
+
+.vibe-settings-collapsible-button[aria-expanded="true"] .vibe-settings-collapsible-chevron {
+  transform: translateY(1px);
+}
+
+.vibe-settings-section-title {
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.vibe-setting-help {
+  margin: 5px 0 10px 27px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Large unified navigation icons: never smaller than 80 px */
+.vibe-nav-image-icon {
+  display: block;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto;
+  object-fit: contain;
+  flex: 0 0 84px;
+}
+
+/* Shared badge visual language for app + floating widget */
+.vibe-count-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #d85a81;
+  color: #fff;
+  border: 1.5px solid #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 1px 5px rgba(0,0,0,.20);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.vibe-nav-button[data-tab="notifications"] {
+  position: relative;
+}
+
+.vibe-nav-badge {
+  position: absolute;
+  top: 4px;
+  left: calc(50% + 27px);
+}
+
+
+
+/* Slightly tighter spacing on narrow phones while keeping icons >=80px. */
+@media (max-width: 380px) {
+  .vibe-nav {
+    min-height: 112px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+
+  .vibe-nav-button {
+    min-height: 100px;
+  }
+
+  .vibe-nav-image-icon {
+    width: 80px;
+    height: 80px;
+    flex-basis: 80px;
+  }
+
+  .vibe-nav-button span {
+    font-size: 10px;
+  }
+
+  .vibe-count-badge {
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    font-size: 7px;
+  }
+}
+
+.vibe-widget-badge {
+  position: absolute;
+  top: -3px;
+  left: calc(100% + 4px);
+  right: auto;
 }
