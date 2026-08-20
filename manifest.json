@@ -6,8 +6,8 @@
   "js": "index.js",
   "css": "style.css",
   "author": "Vibe Project",
-  "version": "0.1.0",
-  "homePage": "https://github.com/your-name/vibe-dating-simulator",
+  "version": "0.5.0",
+  "homePage": "https://github.com/SanMiller999/vibe-dating-simulator",
   "hooks": {
     "activate": "init"
   }

@@ -1,35 +1,151 @@
+.vibe-floating-widget {
+  position: fixed;
+  z-index: 99997;
+  left: auto;
+  top: auto;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  display: block;
+}
+
+.vibe-floating-widget:active {
+  cursor: grabbing;
+}
+
+.vibe-floating-widget.vibe-widget-dragging {
+  cursor: grabbing;
+}
+
+.vibe-floating-widget-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  image-rendering: auto;
+}
+
+.vibe-widget-settings-preview {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+}
+
+.vibe-widget-settings-preview img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.vibe-settings-caption {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.vibe-settings-hint {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.vibe-settings-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.vibe-widget-found {
+  animation: vibeWidgetFound 1.2s ease-in-out;
+}
+
+@keyframes vibeWidgetFound {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(216,90,129,0));
+  }
+  30%, 70% {
+    transform: scale(1.16);
+    filter: drop-shadow(0 0 15px rgba(216,90,129,.9));
+  }
+}
+
+.vibe-slider-row {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) 55px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.vibe-slider-row label {
+  white-space: nowrap;
+}
+
+.vibe-slider-row input[type="range"] {
+  width: 100%;
+  accent-color: #d85a81;
+}
+
+.vibe-slider-row output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .vibe-overlay {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(0,0,0,.58);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100vh;
+  background: #f7f7f8;
 }
 
 .vibe-app {
-  width: min(430px, 96vw);
-  height: min(820px, 94vh);
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   background: #f7f7f8;
   color: #252525;
-  border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 22px 70px rgba(0,0,0,.35);
   display: flex;
   flex-direction: column;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .vibe-topbar {
-  height: 58px;
+  flex: 0 0 auto;
+  height: calc(58px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   background: #fff;
   border-bottom: 1px solid #e8e8eb;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 0 18px;
+  padding-left: 18px;
+  padding-right: 18px;
+  padding-bottom: 8px;
 }
 
 .vibe-logo {
@@ -50,11 +166,14 @@
 .vibe-icon-button {
   font-size: 30px;
   color: #777;
+  padding: 0 4px;
 }
 
 .vibe-content {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
 }
 
@@ -72,7 +191,8 @@
 }
 
 .vibe-photo {
-  height: 330px;
+  height: min(47vh, 420px);
+  min-height: 250px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -160,11 +280,12 @@
 }
 
 .vibe-nav {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   background: #fff;
   border-top: 1px solid #e8e8eb;
-  padding: 6px 4px 7px;
+  padding: 6px 4px calc(7px + env(safe-area-inset-bottom));
 }
 
 .vibe-nav-button {
@@ -349,4 +470,18 @@
   align-items: center;
   font-size: 48px;
   font-weight: 800;
+}
+
+@media (max-width: 480px) {
+  .vibe-content {
+    padding: 12px;
+  }
+
+  .vibe-photo {
+    height: min(45vh, 360px);
+  }
+
+  .vibe-profile-card {
+    border-radius: 16px;
+  }
 }

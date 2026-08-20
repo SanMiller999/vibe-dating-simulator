@@ -4,11 +4,41 @@
       <b>Vibe Dating Simulator</b>
       <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
+
     <div class="inline-drawer-content">
-      <p style="margin-bottom: 8px;">
-        Первый прототип дейтинг-симулятора.
-      </p>
-      <input id="vibe_open_button" class="menu_button" type="submit" value="Открыть Vibe" />
+      <label class="checkbox_label">
+        <input id="vibe_widget_enabled" type="checkbox" checked />
+        <span>Показывать плавающий виджет</span>
+      </label>
+
+      <div class="vibe-widget-settings-preview">
+        <img src="scripts/extensions/third-party/vibe-dating-simulator/assets/vibe-widget-icon.png"
+             alt="Иконка Vibe"
+             id="vibe_settings_icon_preview">
+        <div>
+          <div class="vibe-settings-caption">Плавающий виджет</div>
+          <div class="vibe-settings-hint">
+            Короткий тап — открыть Vibe. Нажатие с удержанием — перетащить и отпустить в нужном месте.
+          </div>
+        </div>
+      </div>
+
+      <div class="vibe-slider-row">
+        <label for="vibe_widget_size">Размер:</label>
+        <input id="vibe_widget_size"
+               type="range"
+               min="24"
+               max="160"
+               step="1"
+               value="46" />
+        <output id="vibe_widget_size_value">46px</output>
+      </div>
+
+      <div class="vibe-settings-buttons">
+        <input id="vibe_open_button" class="menu_button" type="submit" value="Открыть Vibe" />
+        <input id="vibe_find_widget_button" class="menu_button" type="submit" value="Найти виджет" />
+        <input id="vibe_reset_widget_button" class="menu_button" type="submit" value="Вернуть в угол" />
+      </div>
     </div>
   </div>
 </div>
