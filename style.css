@@ -38,6 +38,27 @@
   image-rendering: auto;
 }
 
+.vibe-settings-section {
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+}
+
+.vibe-settings-section-title {
+  font-size: 15px;
+  font-weight: 750;
+  margin-bottom: 10px;
+}
+
+.vibe-settings-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+}
+
 .vibe-widget-settings-preview {
   display: flex;
   gap: 10px;
@@ -438,7 +459,12 @@
 }
 
 .vibe-notification-icon {
-  font-size: 27px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .vibe-notification strong {
@@ -484,4 +510,120 @@
   .vibe-profile-card {
     border-radius: 16px;
   }
+}
+
+
+.vibe-nav-image-icon {
+  display: block;
+  width: 21px;
+  height: 21px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.vibe-notification-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.vibe-notification-icon img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
+
+
+.vibe-chat-nav-icon {
+  width: 23px;
+  height: 23px;
+}
+
+.vibe-empty-chat-icon {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 14px;
+}
+
+.vibe-nav-image-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.vibe-my-profile-icon {
+  display: block;
+  width: 104px;
+  height: 104px;
+  object-fit: contain;
+  margin: 0 auto 8px;
+}
+
+.vibe-my-profile .vibe-my-avatar {
+  display: none;
+}
+
+.vibe-empty-chat-icon {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 14px;
+}
+
+
+.vibe-nav-button[data-tab="notifications"] {
+  position: relative;
+}
+
+.vibe-nav-badge {
+  position: absolute;
+  top: 0px;
+  right: calc(50% - 20px);
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #d85a81;
+  color: #fff;
+  border: 2px solid #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 2px 8px rgba(0,0,0,.20);
+  pointer-events: none;
+  z-index: 3;
+}
+
+
+.vibe-memory-section {
+  margin-top: 12px;
+}
+
+.vibe-setting-item {
+  margin-bottom: 10px;
+}
+
+.vibe-setting-help {
+  margin: 5px 0 10px 27px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.vibe-memory-note {
+  padding-top: 4px;
 }

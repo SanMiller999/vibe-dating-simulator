@@ -4,6 +4,20 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
+const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
+const vibeProfileIconPath = `${extensionFolderPath}/assets/vibe-profile-icon.png`;
+
+
+const DEFAULT_MEMORY_SETTINGS = {
+  autoMemory: true,
+  contextMessages: 30,
+  chatMemory: 30,
+  responseTokens: 1024,
+  sendPlayerProfile: true,
+  sendVisualProfile: true,
+  sendRelationshipMemory: true,
+  sendWorldMemory: true,
+};
 
 const DEFAULT_SETTINGS = {
   widgetEnabled: true,
@@ -55,12 +69,17 @@ const state = {
   currentIndex: 0,
   liked: [],
   chats: {},
+  unreadCount: 0,
 };
 
 function ensureSettings() {
   extension_settings[extensionName] = {
     ...DEFAULT_SETTINGS,
     ...(extension_settings[extensionName] || {}),
+    memory: {
+      ...DEFAULT_MEMORY_SETTINGS,
+      ...((extension_settings[extensionName] || {}).memory || {}),
+    },
   };
 
   const settings = extension_settings[extensionName];
@@ -80,6 +99,74 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+
+function updateMemorySettingsUI() {
+  const memory = extension_settings[extensionName].memory || DEFAULT_MEMORY_SETTINGS;
+
+  $("#vibe_memory_auto").prop("checked", !!memory.autoMemory);
+
+  $("#vibe_context_messages").val(memory.contextMessages);
+  $("#vibe_context_messages_value").text(memory.contextMessages);
+
+  $("#vibe_chat_memory").val(memory.chatMemory);
+  $("#vibe_chat_memory_value").text(memory.chatMemory);
+
+  $("#vibe_response_tokens").val(memory.responseTokens);
+  $("#vibe_response_tokens_value").text(memory.responseTokens);
+
+  $("#vibe_send_player_profile").prop("checked", !!memory.sendPlayerProfile);
+  $("#vibe_send_visual_profile").prop("checked", !!memory.sendVisualProfile);
+  $("#vibe_send_relationship_memory").prop("checked", !!memory.sendRelationshipMemory);
+  $("#vibe_send_world_memory").prop("checked", !!memory.sendWorldMemory);
+}
+
+function bindMemorySettings() {
+  const memory = extension_settings[extensionName].memory;
+
+  $("#vibe_memory_auto").on("change", function () {
+    memory.autoMemory = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_context_messages").on("input change", function () {
+    memory.contextMessages = Number($(this).val());
+    $("#vibe_context_messages_value").text(memory.contextMessages);
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_chat_memory").on("input change", function () {
+    memory.chatMemory = Number($(this).val());
+    $("#vibe_chat_memory_value").text(memory.chatMemory);
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_response_tokens").on("input change", function () {
+    memory.responseTokens = Number($(this).val());
+    $("#vibe_response_tokens_value").text(memory.responseTokens);
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_send_player_profile").on("change", function () {
+    memory.sendPlayerProfile = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_send_visual_profile").on("change", function () {
+    memory.sendVisualProfile = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_send_relationship_memory").on("change", function () {
+    memory.sendRelationshipMemory = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_send_world_memory").on("change", function () {
+    memory.sendWorldMemory = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+}
+
 function updateSettingsUI() {
   const settings = extension_settings[extensionName];
 
@@ -89,6 +176,7 @@ function updateSettingsUI() {
   $("#vibe_widget_size").val(size);
   $("#vibe_widget_size_value").text(`${size}px`);
 
+  updateMemorySettingsUI();
   updateWidget();
 }
 
@@ -131,6 +219,7 @@ function applyWidgetPosition() {
   settings.widgetY = y;
 }
 
+
 function getDefaultWidgetPosition() {
   const settings = extension_settings[extensionName];
   const size = clamp(Number(settings.widgetSize) || DEFAULT_SETTINGS.widgetSize, 24, 160);
@@ -141,83 +230,34 @@ function getDefaultWidgetPosition() {
   };
 }
 
-function resetWidgetPosition(showFeedback = false) {
+function searchWidget() {
   const settings = extension_settings[extensionName];
-  const { x, y } = getDefaultWidgetPosition();
 
-  settings.widgetX = x;
-  settings.widgetY = y;
+  settings.widgetEnabled = true;
 
-  updateWidget();
+  const position = getDefaultWidgetPosition();
+  settings.widgetX = position.x;
+  settings.widgetY = position.y;
+
+  updateSettingsUI();
   saveSettingsDebounced();
-
-  if (showFeedback && typeof toastr !== "undefined") {
-    toastr.success("Виджет возвращён в угол", "Vibe");
-  }
-}
-
-function findWidget(showFeedback = true) {
-  const settings = extension_settings[extensionName];
-
-  if (!settings.widgetEnabled) {
-    settings.widgetEnabled = true;
-    updateSettingsUI();
-  }
-
-  if (!$("#vibe-floating-widget").length) {
-    createWidget();
-  }
 
   const widget = $("#vibe-floating-widget");
 
-  // Bring it to the front and place it in a predictable visible location.
-  widget.css("z-index", "999998");
+  if (widget.length) {
+    widget.css("z-index", "999998");
+    widget.removeClass("vibe-widget-found");
+    void widget[0].offsetWidth;
+    widget.addClass("vibe-widget-found");
 
-  const size = clamp(Number(settings.widgetSize) || DEFAULT_SETTINGS.widgetSize, 24, 160);
-  const bounds = getWidgetBounds(size);
-
-  let x = Number(settings.widgetX);
-  let y = Number(settings.widgetY);
-
-  const completelyOffScreen =
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
-    x < -size + 4 ||
-    y < -size + 4 ||
-    x > window.innerWidth - 4 ||
-    y > window.innerHeight - 4;
-
-  if (completelyOffScreen) {
-    const def = getDefaultWidgetPosition();
-    x = def.x;
-    y = def.y;
-    settings.widgetX = x;
-    settings.widgetY = y;
-    updateWidget();
-  } else {
-    x = clamp(x, bounds.minX, bounds.maxX);
-    y = clamp(y, bounds.minY, bounds.maxY);
-
-    widget.css({
-      left: `${x}px`,
-      top: `${y}px`,
-      right: "auto",
-      bottom: "auto",
-    });
-
-    settings.widgetX = x;
-    settings.widgetY = y;
+    setTimeout(() => {
+      widget.removeClass("vibe-widget-found");
+    }, 1200);
   }
 
-  saveSettingsDebounced();
-
-  if (showFeedback && typeof toastr !== "undefined") {
-    toastr.success("Виджет найден", "Vibe");
+  if (typeof toastr !== "undefined") {
+    toastr.success("Виджет найден и возвращён в правый нижний угол", "Vibe");
   }
-
-  // Brief highlight so the user can spot it.
-  widget.addClass("vibe-widget-found");
-  setTimeout(() => widget.removeClass("vibe-widget-found"), 1200);
 }
 
 function createWidget() {
@@ -231,10 +271,75 @@ function createWidget() {
       <img class="vibe-floating-widget-image"
            src="${widgetIconPath}"
            alt="">
+      <span class="vibe-widget-badge" aria-label="Новые чаты">0</span>
     </button>
   `);
 
   bindWidgetPointerEvents();
+  updateUnreadUI();
+}
+
+
+
+function getUnreadCount() {
+  return Math.max(0, Number(state.unreadCount) || 0);
+}
+
+function updateUnreadUI() {
+  const count = getUnreadCount();
+
+  // Floating widget badge
+  const widget = $("#vibe-floating-widget");
+  if (widget.length) {
+    const badge = widget.find(".vibe-widget-badge");
+
+    if (!count) {
+      badge.text("0").attr("aria-hidden", "true").hide();
+      widget.removeClass("vibe-widget-notify");
+    } else {
+      badge.text(count > 99 ? "99+" : String(count))
+        .attr("aria-hidden", "false")
+        .show();
+      widget.addClass("vibe-widget-notify");
+    }
+  }
+
+  // Bottom navigation badge for the Notifications tab.
+  const notificationButton = $('.vibe-nav-button[data-tab="notifications"]');
+  if (notificationButton.length) {
+    let badge = notificationButton.find(".vibe-nav-badge");
+
+    if (!badge.length) {
+      notificationButton.append('<span class="vibe-nav-badge" aria-label="Непрочитанные сообщения"></span>');
+      badge = notificationButton.find(".vibe-nav-badge");
+    }
+
+    if (!count) {
+      badge.text("0").attr("aria-hidden", "true").hide();
+    } else {
+      badge.text(count > 99 ? "99+" : String(count))
+        .attr("aria-hidden", "false")
+        .show();
+    }
+  }
+}
+
+function markMessagesRead() {
+  state.unreadCount = 0;
+  updateUnreadUI();
+}
+
+function addUnreadMessage() {
+  state.unreadCount += 1;
+  updateUnreadUI();
+
+  const widget = $("#vibe-floating-widget");
+  if (widget.length) {
+    widget.removeClass("vibe-widget-pulse");
+    void widget[0].offsetWidth;
+    widget.addClass("vibe-widget-pulse");
+    setTimeout(() => widget.removeClass("vibe-widget-pulse"), 1100);
+  }
 }
 
 function updateWidget() {
@@ -256,6 +361,7 @@ function updateWidget() {
   });
 
   applyWidgetPosition();
+  updateUnreadUI();
 }
 
 function bindWidgetPointerEvents() {
@@ -393,6 +499,7 @@ function profileCard(profile) {
 }
 
 function renderApp() {
+  markMessagesRead();
   $("#vibe-overlay").remove();
 
   $("body").append(`
@@ -406,10 +513,10 @@ function renderApp() {
         <div id="vibe_content" class="vibe-content"></div>
 
         <div class="vibe-nav">
-          <button class="vibe-nav-button vibe-nav-active" data-tab="feed">♡<span>Знакомства</span></button>
-          <button class="vibe-nav-button" data-tab="chats">💬<span>Чаты</span></button>
-          <button class="vibe-nav-button" data-tab="notifications">🔔<span>Уведомления</span></button>
-          <button class="vibe-nav-button" data-tab="profile">👤<span>Профиль</span></button>
+          <button class="vibe-nav-button vibe-nav-active" data-tab="feed"><img class="vibe-nav-image-icon" src="${vibeDatingIconPath}" alt=""><span>Знакомства</span></button>
+          <button class="vibe-nav-button" data-tab="chats"><img class="vibe-nav-image-icon" src="${vibeChatsIconPath}" alt=""><span>Чаты</span></button>
+          <button class="vibe-nav-button" data-tab="notifications"><img class="vibe-nav-image-icon" src="${notificationsIconPath}" alt=""><span>Уведомления</span></button>
+          <button class="vibe-nav-button" data-tab="profile"><img class="vibe-nav-image-icon" src="${vibeProfileIconPath}" alt=""><span>Профиль</span></button>
         </div>
       </div>
     </div>
@@ -451,6 +558,7 @@ function showFeed() {
     state.chats[profile.id] = [{ from: "them", text: profile.firstMessage }];
 
     showToast("💕 Match", `У вас совпадение с ${profile.name}!`);
+    addUnreadMessage();
 
     state.currentIndex++;
     showChat(profile);
@@ -458,6 +566,7 @@ function showFeed() {
 }
 
 function showChat(profile) {
+  markMessagesRead();
   const messages = state.chats[profile.id] || [];
 
   $("#vibe_content").html(`
@@ -508,6 +617,7 @@ function showChat(profile) {
 }
 
 function showChats() {
+  markMessagesRead();
   const entries = Object.keys(state.chats);
 
   $("#vibe_content").html(`
@@ -533,7 +643,7 @@ function showChats() {
               </button>
             `;
           }).join("")
-        : `<div class="vibe-empty">Пока нет совпадений.<br>Поставьте кому-нибудь лайк.</div>`
+        : `<div class="vibe-empty"><img class="vibe-empty-chat-icon" src="${vibeChatsIconPath}" alt=""><div>Пока нет совпадений.<br>Поставьте кому-нибудь лайк.</div></div>`
     }
   `);
 
@@ -544,14 +654,32 @@ function showChats() {
   });
 }
 
+
+let simulatedIncomingTimer = null;
+
+function startSimulatedIncomingMessages() {
+  if (simulatedIncomingTimer) {
+    clearInterval(simulatedIncomingTimer);
+  }
+
+  simulatedIncomingTimer = setInterval(() => {
+    const chance = Math.random();
+    if (chance < 0.35) {
+      addUnreadMessage();
+      showToast("Новое сообщение", "У вас новый входящий чат");
+    }
+  }, 45000);
+}
+
 function showNotifications() {
+  markMessagesRead();
   const count = state.liked.length;
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Уведомления</div>
 
     <div class="vibe-notification">
-      <div class="vibe-notification-icon">💕</div>
+      <div class="vibe-notification-icon"><img src="${notificationsIconPath}" alt=""></div>
       <div>
         <strong>${count ? count + " новое совпадение" : "Пока тихо"}</strong>
         <div>
@@ -571,7 +699,7 @@ function showPlayerProfile() {
     <div class="vibe-section-title">Ваш профиль</div>
 
     <div class="vibe-my-profile">
-      <div class="vibe-my-avatar">В</div>
+      <img class="vibe-my-profile-icon" src="${vibeProfileIconPath}" alt=""><div class="vibe-my-avatar">В</div>
       <h2>Ваш профиль</h2>
       <div class="vibe-city">Новая анкета</div>
       <p>
@@ -604,6 +732,7 @@ function bindAppEvents() {
   });
 
   showFeed();
+  updateUnreadUI();
 }
 
 jQuery(async () => {
@@ -611,6 +740,8 @@ jQuery(async () => {
 
   const settingsHtml = await $.get(`${extensionFolderPath}/example.html`);
   $("#extensions_settings").append(settingsHtml);
+
+  bindMemorySettings();
 
   $("#vibe_widget_enabled").on("change", function () {
     extension_settings[extensionName].widgetEnabled = $(this).prop("checked");
@@ -629,13 +760,8 @@ jQuery(async () => {
   });
 
   $("#vibe_open_button").on("click", renderApp);
-
   $("#vibe_find_widget_button").on("click", () => {
-    findWidget(true);
-  });
-
-  $("#vibe_reset_widget_button").on("click", () => {
-    resetWidgetPosition(true);
+    searchWidget();
   });
 
   $(window).on("resize", () => {
@@ -646,4 +772,6 @@ jQuery(async () => {
   });
 
   updateWidget();
+  updateUnreadUI();
+  startSimulatedIncomingMessages();
 });
