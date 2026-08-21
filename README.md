@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.6.2
+# Vibe Dating Simulator — v1.6.3
 
 Vibe is a third-party UI extension for SillyTavern that simulates a dating application. It is a game/prototype, not a real dating service.
 
@@ -62,12 +62,12 @@ Do not replace approved artwork without explicit approval.
 Keep source files in the repository and produce ZIP files only as release artifacts.
 
 
-## Player profile editor — v1.6.2
+## Player profile editor — v1.6.3
 
 Добавлен первый реальный слой профиля игрока: фото, имя, возраст, город, пол, кого ищу, цели знакомств, интересы, профессия, образование и «О себе». Данные сохраняются в настройках расширения. Полный AI-анализ фото, несколько фото, public-vs-true persona и Profile Binding остаются следующими этапами.
 
 
-## Hotfix — v1.6.2
+## Hotfix — v1.6.3
 
 Исправлена критическая ошибка инициализации панели расширения, из-за которой Vibe переставал загружаться целиком:
 - объект `settings` теперь создаётся до обращения к `settings.playerProfile`;
@@ -77,19 +77,21 @@ Keep source files in the repository and produce ZIP files only as release artifa
 Функциональность профиля игрока из v1.6.0 сохранена.
 
 
-## Profile page polish — v1.6.2
+## Profile hotfix — v1.6.3
 
-- Added the dating goal **«Интим без обязательств»**.
-- Fixed the age field color so the typed value remains readable.
-- After saving, the Profile tab now becomes a personal dating-site style page with:
-  - large avatar/main photo;
-  - name and age;
-  - city/gender metadata;
-  - about section;
-  - dating goals;
-  - interests;
-  - search preference;
-  - occupation/education;
-  - profile status;
-  - Edit Profile button.
-- The editor remains available through **Редактировать**.
+The profile UI was rebuilt on top of the last known-good v1.6.1 base to avoid regression of extension initialization.
+
+Preserved:
+- extension settings panel;
+- widget;
+- widget movement/size/search;
+- memory settings;
+- chats;
+- notifications;
+- dating tab.
+
+Added safely:
+- «Интим без обязательств» goal;
+- personal profile page after saving;
+- profile editor via «Редактировать»;
+- profile photo, basic information, goals, interests, occupation, education and about text.
