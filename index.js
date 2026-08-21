@@ -24,6 +24,7 @@ const DEFAULT_MEMORY_SETTINGS = {
 
 const DEFAULT_SETTINGS = {
   widgetEnabled: true,
+  aiEnabled: true,
   widgetSize: 46,
   widgetX: null,
   widgetY: null,
@@ -90,6 +91,16 @@ const state = {
   unreadInteractions: {},
   activityNotifications: [],
   dynamicProfiles: {},
+  npcMemories: {},
+  relationshipMemory: {},
+  generatingChats: {},
+  npcEventCooldowns: {},
+  npcEventRunning: false,
+  npcRoleStates: {},
+  npcRelationships: {},
+  npcSocialEventCooldownUntil: 0,
+  activeDate: null,
+  dateStates: {},
 };
 
 function saveChatState() {
@@ -100,6 +111,14 @@ function saveChatState() {
     unreadInteractions: state.unreadInteractions,
     activityNotifications: state.activityNotifications,
     dynamicProfiles: state.dynamicProfiles,
+    npcMemories: state.npcMemories,
+    relationshipMemory: state.relationshipMemory,
+    npcEventCooldowns: state.npcEventCooldowns,
+    npcRoleStates: state.npcRoleStates,
+    npcRelationships: state.npcRelationships,
+    npcSocialEventCooldownUntil: state.npcSocialEventCooldownUntil,
+    dateStates: state.dateStates,
+    activeDate: state.activeDate,
   };
   saveSettingsDebounced();
 }
@@ -120,6 +139,28 @@ function loadChatState() {
   state.dynamicProfiles = saved.dynamicProfiles && typeof saved.dynamicProfiles === "object"
     ? saved.dynamicProfiles
     : {};
+  state.npcMemories = saved.npcMemories && typeof saved.npcMemories === "object"
+    ? saved.npcMemories
+    : {};
+  state.relationshipMemory = saved.relationshipMemory && typeof saved.relationshipMemory === "object"
+    ? saved.relationshipMemory
+    : {};
+  state.npcEventCooldowns = saved.npcEventCooldowns && typeof saved.npcEventCooldowns === "object"
+    ? saved.npcEventCooldowns
+    : {};
+  state.npcRoleStates = saved.npcRoleStates && typeof saved.npcRoleStates === "object"
+    ? saved.npcRoleStates
+    : {};
+  state.npcRelationships = saved.npcRelationships && typeof saved.npcRelationships === "object"
+    ? saved.npcRelationships
+    : {};
+  state.npcSocialEventCooldownUntil = Number(saved.npcSocialEventCooldownUntil) || 0;
+  state.dateStates = saved.dateStates && typeof saved.dateStates === "object"
+    ? saved.dateStates
+    : {};
+  state.activeDate = saved.activeDate && typeof saved.activeDate === "object"
+    ? saved.activeDate
+    : null;
 }
 
 function ensureSettings() {
@@ -403,6 +444,10 @@ function addExternalActivityEvent({
   text = "",
   sendsMessage = false,
   message = "",
+  expectsPlayerReply = false,
+  relatedActorId = null,
+  relationshipEventType = null,
+  relationshipSummary = "",
 } = {}) {
   const profile = actorProfile
     ? (state.dynamicProfiles[actorProfile.id] = { ...actorProfile })
@@ -417,10 +462,21 @@ function addExternalActivityEvent({
     seed,
     title,
     text,
+    expectsPlayerReply,
   });
 
   if (sendsMessage && sourceId && message) {
     addIncomingMessage(sourceId, message);
+  }
+
+  if (sourceId && relatedActorId && sourceId !== relatedActorId) {
+    recordNpcRelationshipEvent(sourceId, relatedActorId, {
+      eventType: type,
+      type: relationshipEventType,
+      summary: relationshipSummary || `${profile?.name || "Персонаж"}: ${title}`.trim(),
+      source: "activity",
+      metadata: { notificationId },
+    });
   }
 
   return notificationId;
@@ -465,7 +521,8 @@ function setNavBadge(button, count, label) {
 function updateUnreadUI() {
   const unreadChats = getUnreadChatsCount();
   const unreadActivity = getUnreadActivityCount();
-  const total = Math.min(20, unreadChats + unreadActivity);
+  const rawTotal = unreadChats + unreadActivity;
+  const total = Math.min(20, rawTotal);
 
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
@@ -473,7 +530,7 @@ function updateUnreadUI() {
 
     // The number is part of the widget image itself.
     image.attr("src", getWidgetIconPathForCount(total));
-    widget.attr("aria-label", total ? `Новых взаимодействий: ${total}` : "Открыть Vibe");
+    widget.attr("aria-label", rawTotal ? `Новых взаимодействий: ${rawTotal}` : "Открыть Vibe");
 
     if (total) {
       widget.addClass("vibe-widget-notify");
@@ -510,18 +567,34 @@ const NPC_ARCHETYPES = Object.freeze({
     goals: ["Свидания", "Общение"],
     style: ["быстро загорается", "может менять интерес", "легко отвлекается"],
     pacing: "быстрый",
-    initiative: 0.8,
-    consistency: 0.45,
-    flirt: 0.7,
+    initiative: 0.82,
+    consistency: 0.42,
+    flirt: 0.72,
+    strategy: {
+      priorities: ["novelty", "chemistry", "fun"],
+      preferredEvents: ["check_in", "topic_callback", "flirty_nudge"],
+      conflictStyle: "может резко переключиться, но способен вернуться позже",
+      disclosureStyle: "раскрывается рывками, когда разговор снова становится интересным",
+      ghostingRisk: 0.38,
+      jealousy: 0.25,
+    },
   },
   entertainment: {
     label: "Ищущий развлечений",
     goals: ["Свидания", "Общение"],
     style: ["любит спонтанность", "любит шутки", "избегает скучных разговоров"],
     pacing: "быстрый",
-    initiative: 0.85,
+    initiative: 0.86,
     consistency: 0.5,
     flirt: 0.65,
+    strategy: {
+      priorities: ["fun", "novelty", "spontaneity"],
+      preferredEvents: ["check_in", "topic_callback", "flirty_nudge"],
+      conflictStyle: "снимает напряжение шуткой или переводом темы",
+      disclosureStyle: "делится личным через истории и приколы",
+      ghostingRisk: 0.3,
+      jealousy: 0.2,
+    },
   },
   casual_intimacy: {
     label: "Ищущий интим без обязательств",
@@ -530,7 +603,15 @@ const NPC_ARCHETYPES = Object.freeze({
     pacing: "быстрый",
     initiative: 0.9,
     consistency: 0.55,
-    flirt: 0.9,
+    flirt: 0.92,
+    strategy: {
+      priorities: ["chemistry", "flirt", "clarity"],
+      preferredEvents: ["flirty_nudge", "check_in", "personal_followup"],
+      conflictStyle: "прямо спрашивает, всё ли устраивает, и принимает чёткий отказ",
+      disclosureStyle: "рано говорит о своих намерениях",
+      ghostingRisk: 0.2,
+      jealousy: 0.12,
+    },
   },
   serious_relationship: {
     label: "Ищущий серьёзных отношений",
@@ -538,8 +619,16 @@ const NPC_ARCHETYPES = Object.freeze({
     style: ["осторожный", "последовательный", "ценит доверие"],
     pacing: "средний",
     initiative: 0.6,
-    consistency: 0.9,
-    flirt: 0.5,
+    consistency: 0.92,
+    flirt: 0.48,
+    strategy: {
+      priorities: ["trust", "compatibility", "stability"],
+      preferredEvents: ["personal_followup", "topic_callback", "check_in"],
+      conflictStyle: "предпочитает спокойно проговорить проблему",
+      disclosureStyle: "раскрывается постепенно по мере доверия",
+      ghostingRisk: 0.08,
+      jealousy: 0.45,
+    },
   },
   friendship: {
     label: "Ищущий дружбу",
@@ -547,53 +636,186 @@ const NPC_ARCHETYPES = Object.freeze({
     style: ["общительный", "эмпатичный", "не торопит романтику"],
     pacing: "средний",
     initiative: 0.65,
-    consistency: 0.85,
-    flirt: 0.2,
+    consistency: 0.88,
+    flirt: 0.18,
+    strategy: {
+      priorities: ["friendship", "shared_interests", "support"],
+      preferredEvents: ["topic_callback", "check_in", "personal_followup"],
+      conflictStyle: "пытается понять позицию собеседника и не давит",
+      disclosureStyle: "делится личным в обмен на взаимность",
+      ghostingRisk: 0.08,
+      jealousy: 0.08,
+    },
   },
   networking: {
     label: "Ищущий полезные знакомства",
-    goals: ["Общение"],
+    goals: ["Общение", "Нетворкинг"],
     style: ["целеустремлённый", "задаёт конкретные вопросы", "интересуется навыками и делами"],
     pacing: "средний",
     initiative: 0.7,
-    consistency: 0.8,
-    flirt: 0.15,
+    consistency: 0.82,
+    flirt: 0.12,
+    strategy: {
+      priorities: ["value", "skills", "opportunities"],
+      preferredEvents: ["topic_callback", "personal_followup", "check_in"],
+      conflictStyle: "возвращается к конкретному вопросу и ищет взаимную пользу",
+      disclosureStyle: "не раскрывается без практической причины",
+      ghostingRisk: 0.16,
+      jealousy: 0.05,
+    },
   },
   eccentric: {
     label: "Сумасшедший / хаотичный",
     goals: ["Общение", "Свидания"],
     style: ["непредсказуемый", "скачет между темами", "необычный юмор"],
     pacing: "непредсказуемый",
-    initiative: 0.75,
-    consistency: 0.3,
-    flirt: 0.4,
+    initiative: 0.76,
+    consistency: 0.28,
+    flirt: 0.42,
+    strategy: {
+      priorities: ["novelty", "absurdity", "curiosity"],
+      preferredEvents: ["check_in", "topic_callback", "repair_attempt"],
+      conflictStyle: "может сначала уйти в шутку, затем неожиданно вернуться к сути",
+      disclosureStyle: "раскрывает странные или неожиданные детали без линейной подачи",
+      ghostingRisk: 0.32,
+      jealousy: 0.3,
+    },
   },
   boundary_pusher: {
     label: "Перверт / нарушитель границ",
     goals: ["Интим без обязательств", "Свидания"],
-    style: ["может быть навязчивым", "проверяет границы", "должен реагировать на отказ"],
+    style: ["проверяет границы", "может быть навязчивым", "должен реагировать на отказ"],
     pacing: "быстрый",
-    initiative: 0.85,
-    consistency: 0.55,
-    flirt: 0.9,
+    initiative: 0.84,
+    consistency: 0.5,
+    flirt: 0.92,
+    strategy: {
+      priorities: ["chemistry", "risk", "reaction"],
+      preferredEvents: ["flirty_nudge", "check_in", "repair_attempt"],
+      conflictStyle: "после явной границы должен отступить и скорректировать тон",
+      disclosureStyle: "может рано говорить о сексуальных ожиданиях, но не отменяет согласие",
+      ghostingRisk: 0.22,
+      jealousy: 0.2,
+    },
   },
   intense: {
     label: "Тревожный / навязчиво-влюбчивый",
     goals: ["Отношения"],
     style: ["быстро привязывается", "может быть ревнивым", "нуждается в ясности"],
     pacing: "быстрый",
-    initiative: 0.95,
+    initiative: 0.92,
     consistency: 0.5,
-    flirt: 0.8,
+    flirt: 0.82,
+    strategy: {
+      priorities: ["attachment", "reassurance", "clarity"],
+      preferredEvents: ["check_in", "personal_followup", "repair_attempt", "flirty_nudge"],
+      conflictStyle: "может тревожиться и просить ясности, но должен принимать границы",
+      disclosureStyle: "рано делится эмоциональной уязвимостью",
+      ghostingRisk: 0.12,
+      jealousy: 0.82,
+    },
   },
   kindred_spirit: {
     label: "Ищущий единомышленника",
     goals: ["Общение", "Дружба", "Серьёзные отношения"],
     style: ["ищет совпадение ценностей", "любит глубокие темы", "наблюдательный"],
     pacing: "средний",
-    initiative: 0.65,
-    consistency: 0.9,
+    initiative: 0.66,
+    consistency: 0.92,
     flirt: 0.45,
+    strategy: {
+      priorities: ["values", "depth", "meaning"],
+      preferredEvents: ["topic_callback", "personal_followup", "check_in"],
+      conflictStyle: "пытается разобраться в мотивах и ценностях",
+      disclosureStyle: "раскрывается через глубокие темы и личные признания",
+      ghostingRisk: 0.06,
+      jealousy: 0.32,
+    },
+  },
+  dangerous: {
+    label: "Тёмный / потенциально опасный характер",
+    goals: ["Свидания", "Общение"],
+    style: ["непредсказуемый", "тревожащая манера общения", "скрытный"],
+    pacing: "рывками",
+    initiative: 0.72,
+    consistency: 0.26,
+    flirt: 0.5,
+    strategy: {
+      priorities: ["control", "mystery", "reaction"],
+      preferredEvents: ["check_in", "repair_attempt", "personal_followup"],
+      conflictStyle: "может становиться холоднее и дистанцироваться вместо прямого конфликта",
+      disclosureStyle: "раскрывается крайне дозированно",
+      ghostingRisk: 0.4,
+      jealousy: 0.66,
+    },
+  },
+  slow_burn: {
+    label: "Медленно сближающийся",
+    goals: ["Серьёзные отношения", "Дружба"],
+    style: ["осторожный", "раскрывается постепенно", "наблюдает дольше, чем говорит"],
+    pacing: "медленный",
+    initiative: 0.38,
+    consistency: 0.95,
+    flirt: 0.28,
+    strategy: {
+      priorities: ["trust", "safety", "depth"],
+      preferredEvents: ["topic_callback", "personal_followup", "check_in"],
+      conflictStyle: "берёт паузу и возвращается к теме, когда становится спокойнее",
+      disclosureStyle: "не раскрывает личное до устойчивого доверия",
+      ghostingRisk: 0.08,
+      jealousy: 0.18,
+    },
+  },
+  flirt_collector: {
+    label: "Коллекционер флирта",
+    goals: ["Свидания", "Общение"],
+    style: ["любит внимание", "охотно флиртует", "легко поддерживает несколько разговоров"],
+    pacing: "быстрый",
+    initiative: 0.88,
+    consistency: 0.38,
+    flirt: 0.98,
+    strategy: {
+      priorities: ["chemistry", "attention", "novelty"],
+      preferredEvents: ["flirty_nudge", "check_in", "topic_callback"],
+      conflictStyle: "переводит конфликт в лёгкую игру или меняет тему",
+      disclosureStyle: "раскрывается выборочно, предпочитая красивую подачу",
+      ghostingRisk: 0.42,
+      jealousy: 0.34,
+    },
+  },
+  attention_seeker: {
+    label: "Ищущий внимания",
+    goals: ["Общение", "Свидания"],
+    style: ["любит быстрый отклик", "чувствителен к дистанции", "эмоциональный"],
+    pacing: "быстрый",
+    initiative: 0.84,
+    consistency: 0.56,
+    flirt: 0.58,
+    strategy: {
+      priorities: ["reassurance", "attention", "attachment"],
+      preferredEvents: ["check_in", "repair_attempt", "personal_followup"],
+      conflictStyle: "быстро показывает, что его задело, и ищет подтверждение интереса",
+      disclosureStyle: "рано рассказывает о своих эмоциях",
+      ghostingRisk: 0.15,
+      jealousy: 0.62,
+    },
+  },
+  pragmatist: {
+    label: "Прагматичный",
+    goals: ["Общение", "Отношения", "Нетворкинг"],
+    style: ["конкретный", "не любит игры", "оценивает совместимость по поступкам"],
+    pacing: "средний",
+    initiative: 0.58,
+    consistency: 0.94,
+    flirt: 0.3,
+    strategy: {
+      priorities: ["compatibility", "reliability", "clarity"],
+      preferredEvents: ["personal_followup", "topic_callback", "check_in"],
+      conflictStyle: "предпочитает коротко обозначить проблему и искать решение",
+      disclosureStyle: "делится фактами и планами раньше, чем чувствами",
+      ghostingRisk: 0.07,
+      jealousy: 0.12,
+    },
   },
 });
 
@@ -601,6 +823,102 @@ const NPC_FIRST_NAMES = [
   "Анна", "Катя", "Лера", "Маша", "Ника", "София", "Ирина", "Полина",
   "Алексей", "Максим", "Илья", "Денис", "Артём", "Даниил", "Михаил", "Роман"
 ];
+const NPC_FIRST_NAMES_FEMALE = ["Анна", "Катя", "Лера", "Маша", "Ника", "София", "Ирина", "Полина"];
+const NPC_FIRST_NAMES_MALE = ["Алексей", "Максим", "Илья", "Денис", "Артём", "Даниил", "Михаил", "Роман"];
+
+
+function randomFloat(min = 0, max = 1) {
+  return min + Math.random() * (max - min);
+}
+
+function createNpcBehaviorProfile(archetype, rng = Math.random) {
+  const strategy = archetype?.strategy || {};
+  return {
+    warmth: clamp((archetype?.consistency || 0.5) + (rng() - 0.5) * 0.3, 0, 1),
+    spontaneity: clamp((archetype?.initiative || 0.5) + (rng() - 0.5) * 0.35, 0, 1),
+    jealousy: clamp((strategy.jealousy ?? 0.2) + (rng() - 0.5) * 0.28, 0, 1),
+    ghostingRisk: clamp((strategy.ghostingRisk ?? 0.15) + (rng() - 0.5) * 0.22, 0, 1),
+    disclosure: clamp((archetype?.consistency || 0.5) + (rng() - 0.5) * 0.28, 0, 1),
+    boundaryRespect: archetype?.label?.toLowerCase().includes("нарушитель")
+      ? clamp(0.68 + rng() * 0.2, 0, 1)
+      : clamp(0.9 + (rng() - 0.5) * 0.15, 0, 1),
+    emotionality: clamp((archetype?.flirt || 0.5) + (rng() - 0.5) * 0.35, 0, 1),
+    roleVariance: randomFloat(0.75, 1.25),
+  };
+}
+
+function getNpcArchetype(profile) {
+  const id = profile?.ai?.archetypeId;
+  return NPC_ARCHETYPES[id] || NPC_ARCHETYPES.kindred_spirit;
+}
+
+function getNpcStrategy(profile) {
+  const archetype = getNpcArchetype(profile);
+  const behavior = profile?.ai?.behavior || createNpcBehaviorProfile(archetype);
+  return { archetype, behavior };
+}
+
+function ensureNpcRoleState(profile) {
+  if (!profile) return null;
+  state.npcRoleStates[profile.id] ||= {
+    lastAction: "",
+    actionCount: 0,
+    preferredTopics: [],
+    roleMood: "neutral",
+    lastEventAt: 0,
+    positiveStreak: 0,
+    negativeStreak: 0,
+    jealousy: 0,
+    distanceScore: 0,
+    lastPlayerMessageAt: 0,
+  };
+  return state.npcRoleStates[profile.id];
+}
+
+function chooseWeighted(items) {
+  if (!items.length) return null;
+  const total = items.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0);
+  if (total <= 0) return items[Math.floor(Math.random() * items.length)].value;
+  let cursor = Math.random() * total;
+  for (const item of items) {
+    cursor -= Math.max(0, Number(item.weight) || 0);
+    if (cursor <= 0) return item.value;
+  }
+  return items[items.length - 1].value;
+}
+
+function getRoleDirective(profileId, situation = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return "";
+  const { archetype, behavior } = getNpcStrategy(profile);
+  const relationship = getRelationshipMemory(profileId);
+  const stage = getRelationshipStage(profileId);
+  const roleState = ensureNpcRoleState(profile);
+
+  const directives = [
+    `Роль персонажа: ${archetype.label}.`,
+    `Главные цели роли: ${(archetype.goals || []).join(", ")}.`,
+    `Приоритеты поведения: ${(archetype.strategy?.priorities || []).join(", ")}.`,
+    `Манера конфликта: ${archetype.strategy?.conflictStyle || "спокойно обсуждает проблему"}.`,
+    `Манера самораскрытия: ${archetype.strategy?.disclosureStyle || "раскрывается постепенно"}.`,
+    `Поведение вживую: ${(archetype.strategy?.lifeStyle || ["в реальной встрече персонаж может заметно отличаться от переписки"]).join("; ")}.`,
+    `Индивидуальные параметры: тепло=${behavior.warmth.toFixed(2)}, спонтанность=${behavior.spontaneity.toFixed(2)}, ревнивость=${behavior.jealousy.toFixed(2)}, эмоциональность=${behavior.emotionality.toFixed(2)}, раскрытие=${behavior.disclosure.toFixed(2)}.`,
+    `Текущая стадия отношений: ${stage}.`,
+    `Текущее эмоциональное состояние роли: ${roleState.roleMood}; положительная серия=${roleState.positiveStreak}, негативная серия=${roleState.negativeStreak}, ревнивость=${roleState.jealousy.toFixed(2)}, дистанция=${roleState.distanceScore.toFixed(2)}.`,
+    `Внутренняя задача сцены: сохраняй узнаваемость роли, но не повторяй одну и ту же реакцию механически.`,
+  ];
+
+  if (situation.expectPlayerFirst) {
+    directives.push("Персонаж не должен писать первым в этом событии: уведомление только открывает чат и ждёт сообщения пользователя.");
+  }
+  if (relationship.sentiment < -0.15) {
+    directives.push("Между вами есть напряжение: не переходи автоматически к тёплому флирту.");
+  }
+  if (relationship.attraction > 0.25 && archetype.flirt > 0.5) {
+    directives.push("Есть взаимная химия: допустима более тёплая подача, но только в рамках текущих границ и стадии отношений.");
+  }
+  return directives.join("\n");
+}
 
 function getAllProfiles() {
   return [
@@ -623,7 +941,11 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
     };
   })();
 
-  const firstName = NPC_FIRST_NAMES[Math.floor(rng() * NPC_FIRST_NAMES.length)];
+  const gender = rng() > 0.5 ? "Женщина" : "Мужчина";
+  const namePool = gender === "Женщина" ? NPC_FIRST_NAMES_FEMALE : NPC_FIRST_NAMES_MALE;
+  const usedNames = new Set(getAllProfiles().map(p => p?.name).filter(Boolean));
+  const availableNames = namePool.filter(name => !usedNames.has(name));
+  const firstName = (availableNames.length ? availableNames : namePool)[Math.floor(rng() * (availableNames.length || namePool.length))];
   const id = `npc_${Date.now()}_${Math.floor(rng() * 1e9)}`;
 
   const profile = {
@@ -631,7 +953,7 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
     name: firstName,
     age: 21 + Math.floor(rng() * 24),
     city: ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск"][Math.floor(rng() * 5)],
-    gender: rng() > 0.5 ? "Женщина" : "Мужчина",
+    gender,
     lookingFor: ["Не важно"],
     datingGoals: [...archetype.goals],
     occupation: ["Дизайнер", "Разработчик", "Маркетолог", "Фотограф", "Врач", "Предприниматель", "Преподаватель", "Менеджер"][Math.floor(rng() * 8)],
@@ -651,6 +973,8 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
       initiative: clamp(archetype.initiative + (rng() - 0.5) * 0.25, 0, 1),
       consistency: clamp(archetype.consistency + (rng() - 0.5) * 0.25, 0, 1),
       flirt: clamp(archetype.flirt + (rng() - 0.5) * 0.25, 0, 1),
+      behavior: createNpcBehaviorProfile(archetype, rng),
+      deceptionVariance: clamp(0.25 + rng() * 0.65, 0, 1),
       seed: Math.floor(rng() * 2147483647),
     },
   };
@@ -660,6 +984,8 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
   profile.interests = shuffled.slice(0, 3);
 
   profile.about = `${archetype.label}. ${archetype.style[rng() * archetype.style.length | 0]}.`;
+
+  initializeRevelationSystem(profile);
 
   profile.publicProfile = {
     name: profile.name,
@@ -674,6 +1000,10 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
     about: profile.about,
     photos: Array.isArray(profile.photos) ? [...profile.photos] : [],
   };
+
+  profile.deceptionProfile ||= { revealed: [], discrepancies: [], mode: "mixed", sceneObservations: [] };
+  profile.deceptionProfile.publicToPrivateVariance = profile.ai.deceptionVariance;
+  profile.deceptionProfile.discrepancies = buildDeceptionDiscrepancies(profile);
 
   state.dynamicProfiles[id] = profile;
   saveChatState();
@@ -733,7 +1063,7 @@ function ensureChat(id) {
   return chat;
 }
 
-function addIncomingMessage(id, text) {
+function addIncomingMessage(id, text, options = {}) {
   const chat = ensureChat(id);
 
   chat.messages.push({
@@ -742,6 +1072,10 @@ function addIncomingMessage(id, text) {
     text,
     timestamp: Date.now()
   });
+  if (options.updateRelationship !== false) {
+    updateRelationshipMemory(id, { from: "them", text });
+    rememberNpcMessage(id, { from: "them", text, timestamp: Date.now() });
+  }
   chat.updatedAt = Date.now();
   saveChatState();
 
@@ -769,6 +1103,7 @@ function createDemoMatch(profileId) {
     actorId: profile.id,
     title: "У вас совпадение",
     text: `Теперь вы можете начать чат с ${profile.name}.`,
+    expectsPlayerReply: true,
   });
 
   showToast("Демо-событие", `Создано совпадение с ${profile.name}.`);
@@ -783,9 +1118,25 @@ function createDemoPhotoLike(profileId) {
     actorId: profile.id,
     title: "Лайк фото",
     text: `${profile.name} понравилась ваша фотография.`,
+    expectsPlayerReply: true,
   });
 
   showToast("Демо-событие", `Создан лайк фото от ${profile.name}.`);
+}
+
+function openChatFromNotification(item) {
+  const profile = ensureProfileFromActivity(item);
+  if (!profile) return null;
+  const chat = ensureChat(profile.id);
+  chat.notificationContext = {
+    lastType: item.type || "other",
+    expectsPlayerReply: item.expectsPlayerReply === true,
+    hasIncomingMessage: ensureChat(profile.id).messages.some(m => m.from === "them"),
+    eventType: item.eventType || null,
+    createdAt: Date.now(),
+  };
+  saveChatState();
+  return profile;
 }
 
 function createDemoPhotoLikeAndMessage(profileId) {
@@ -812,6 +1163,17 @@ function resetDemoState() {
   state.unreadInteractions = {};
   state.activityNotifications = [];
   state.dynamicProfiles = {};
+  state.npcMemories = {};
+  state.relationshipMemory = {};
+  state.generatingChats = {};
+  state.npcEventCooldowns = {};
+  state.npcRoleStates = {};
+  state.npcRelationships = {};
+  state.npcSocialEventCooldownUntil = 0;
+  state.dateStates = {};
+  state.activeDate = null;
+  state.npcEventRunning = false;
+  void clearDatePromptInjection();
   saveChatState();
   updateUnreadUI();
 
@@ -961,6 +1323,975 @@ function escapeHtml(value) {
 }
 
 
+
+function getNpcMemory(profileId) {
+  state.npcMemories[profileId] ||= {
+    summary: "",
+    facts: [],
+    topics: [],
+    preferences: [],
+    emotionalNotes: [],
+    lastMessageAt: 0,
+    lastUpdated: 0,
+  };
+
+  const memory = state.npcMemories[profileId];
+  if (!Array.isArray(memory.facts)) memory.facts = [];
+  if (!Array.isArray(memory.topics)) memory.topics = [];
+  if (!Array.isArray(memory.preferences)) memory.preferences = [];
+  if (!Array.isArray(memory.emotionalNotes)) memory.emotionalNotes = [];
+  return memory;
+}
+
+const NPC_RELATIONSHIP_TYPES = new Set([
+  "stranger",
+  "acquaintance",
+  "friend",
+  "rival",
+  "ex",
+  "partner",
+  "other",
+]);
+
+function getNpcRelationshipKey(firstId, secondId) {
+  if (!firstId || !secondId || firstId === secondId) return null;
+  return [String(firstId), String(secondId)].sort().join("::");
+}
+
+function ensureNpcRelationship(firstId, secondId) {
+  const key = getNpcRelationshipKey(firstId, secondId);
+  if (!key) return null;
+
+  state.npcRelationships[key] ||= {
+    id: key,
+    participants: key.split("::"),
+    type: "stranger",
+    affinity: 0,
+    trust: 0,
+    sentiment: 0,
+    interactionCount: 0,
+    history: [],
+    origin: "event",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  const relationship = state.npcRelationships[key];
+  relationship.participants = Array.isArray(relationship.participants) && relationship.participants.length === 2
+    ? relationship.participants
+    : key.split("::");
+  relationship.type = NPC_RELATIONSHIP_TYPES.has(relationship.type) ? relationship.type : "other";
+  relationship.history = Array.isArray(relationship.history) ? relationship.history : [];
+  relationship.interactionCount = Math.max(0, Number(relationship.interactionCount) || 0);
+  relationship.affinity = clamp(Number(relationship.affinity) || 0, -1, 1);
+  relationship.trust = clamp(Number(relationship.trust) || 0, -1, 1);
+  relationship.sentiment = clamp(Number(relationship.sentiment) || 0, -1, 1);
+  return relationship;
+}
+
+function getNpcRelationship(firstId, secondId) {
+  const key = getNpcRelationshipKey(firstId, secondId);
+  return key ? state.npcRelationships[key] || null : null;
+}
+
+function getNpcRelationshipsFor(profileId) {
+  if (!profileId) return [];
+  return Object.values(state.npcRelationships || {})
+    .filter(item => Array.isArray(item?.participants) && item.participants.includes(profileId))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+function getOtherNpcId(relationship, profileId) {
+  if (!relationship?.participants?.length) return null;
+  return relationship.participants.find(id => id !== profileId) || null;
+}
+
+function recordNpcRelationshipEvent(firstId, secondId, {
+  eventType = "interaction",
+  type = null,
+  affinityDelta = 0,
+  trustDelta = 0,
+  sentimentDelta = 0,
+  summary = "",
+  source = "event",
+  metadata = {},
+} = {}) {
+  const first = getProfileById(firstId);
+  const second = getProfileById(secondId);
+  if (!first || !second || first.id === second.id) return null;
+
+  const relationship = ensureNpcRelationship(first.id, second.id);
+  relationship.interactionCount += 1;
+  relationship.affinity = clamp(relationship.affinity + Number(affinityDelta || 0), -1, 1);
+  relationship.trust = clamp(relationship.trust + Number(trustDelta || 0), -1, 1);
+  relationship.sentiment = clamp(relationship.sentiment + Number(sentimentDelta || 0), -1, 1);
+  if (NPC_RELATIONSHIP_TYPES.has(type)) relationship.type = type;
+  else if (relationship.interactionCount > 0 && relationship.type === "stranger") relationship.type = "acquaintance";
+
+  relationship.history.push({
+    id: `npc_rel_event_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    eventType,
+    source,
+    summary: String(summary || "").slice(0, 500),
+    metadata: metadata && typeof metadata === "object" ? { ...metadata } : {},
+    createdAt: Date.now(),
+  });
+  relationship.history = relationship.history.slice(-20);
+  relationship.updatedAt = Date.now();
+  saveChatState();
+  return relationship;
+}
+
+function getNpcSocialPairCandidates() {
+  const npcProfiles = getAllProfiles()
+    .filter(profile => profile?.id)
+    .map(profile => ensurePublicProfileForNpc(profile))
+    .filter(Boolean);
+  const pairs = [];
+
+  for (let i = 0; i < npcProfiles.length; i += 1) {
+    for (let j = i + 1; j < npcProfiles.length; j += 1) {
+      const first = npcProfiles[i];
+      const second = npcProfiles[j];
+      if (first.id === second.id) continue;
+
+      const relationship = getNpcRelationship(first.id, second.id);
+      if (relationship?.type === "partner" || relationship?.type === "ex") continue;
+
+      const firstInterests = new Set(Array.isArray(first.interests) ? first.interests : []);
+      const secondInterests = Array.isArray(second.interests) ? second.interests : [];
+      const overlap = secondInterests.filter(item => firstInterests.has(item)).length;
+      const sameCity = first.city && second.city && first.city === second.city ? 1 : 0;
+      const sharedGoal = (Array.isArray(first.datingGoals) ? first.datingGoals : []).some(goal =>
+        (Array.isArray(second.datingGoals) ? second.datingGoals : []).includes(goal),
+      ) ? 1 : 0;
+
+      const baseScore = overlap * 2 + sameCity + sharedGoal;
+      if (baseScore <= 0) continue;
+      if (relationship?.interactionCount >= 3) continue;
+
+      pairs.push({ first, second, relationship, score: baseScore + Math.random() * 1.5 });
+    }
+  }
+
+  return pairs.sort((a, b) => b.score - a.score);
+}
+
+function runNpcSocialEvent({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && now < state.npcSocialEventCooldownUntil) return null;
+  const candidates = getNpcSocialPairCandidates();
+  if (!candidates.length) return null;
+
+  const chosen = chooseWeighted(candidates.slice(0, 8).map(item => ({ value: item, weight: item.score })));
+  if (!chosen) return null;
+
+  const { first, second, relationship } = chosen;
+  const isNew = !relationship;
+  const sharedInterests = (Array.isArray(first.interests) ? first.interests : [])
+    .filter(item => (Array.isArray(second.interests) ? second.interests : []).includes(item));
+  const commonInterest = sharedInterests[0] || null;
+  const sameCity = first.city && second.city && first.city === second.city;
+  const summary = isNew
+    ? `${first.name} увидел(а) профиль ${second.name} в Vibe${commonInterest ? ` и заметил(а) общий интерес: ${commonInterest}` : sameCity ? ` — они из одного города: ${first.city}` : ""}.`
+    : `${first.name} и ${second.name} снова пересеклись в Vibe${commonInterest ? ` вокруг темы «${commonInterest}»` : "."}`;
+
+  const result = recordNpcRelationshipEvent(first.id, second.id, {
+    eventType: isNew ? "profile_discovery" : "repeat_contact",
+    type: relationship?.interactionCount >= 2 ? "friend" : null,
+    affinityDelta: isNew ? 0.06 : 0.03,
+    trustDelta: isNew ? 0.02 : 0.04,
+    sentimentDelta: isNew ? 0.05 : 0.03,
+    summary,
+    source: "dating_simulation",
+    metadata: {
+      commonInterest,
+      sameCity: !!sameCity,
+      createdBy: isNew ? "profile_discovery" : "repeat_contact",
+    },
+  });
+
+  state.npcSocialEventCooldownUntil = now + (force ? 10_000 : 30 * 60_000 + Math.floor(Math.random() * 30 * 60_000));
+  saveChatState();
+  return result;
+}
+
+function describeNpcRelationshipsForContext(profileId) {
+  const relationships = getNpcRelationshipsFor(profileId);
+  if (!relationships.length) return [];
+
+  return relationships.slice(0, 6).map(relationship => {
+    const otherId = getOtherNpcId(relationship, profileId);
+    const other = getProfileById(otherId);
+    return {
+      npcId: otherId,
+      name: other?.name || otherId || "Неизвестный персонаж",
+      type: relationship.type,
+      affinity: relationship.affinity,
+      trust: relationship.trust,
+      sentiment: relationship.sentiment,
+      interactionCount: relationship.interactionCount,
+      recentEvents: relationship.history.slice(-3).map(event => ({
+        type: event.eventType,
+        summary: event.summary,
+        createdAt: event.createdAt,
+      })),
+    };
+  });
+}
+
+function getRelationshipMemory(profileId) {
+  state.relationshipMemory[profileId] ||= {
+    trust: 0,
+    attraction: 0,
+    familiarity: 0,
+    sentiment: 0,
+    boundariesRespected: 0,
+    interactionCount: 0,
+    positiveInteractions: 0,
+    negativeInteractions: 0,
+    lastInteractionFrom: "",
+    lastInteractionAt: 0,
+    summary: "Нового знакомства пока нет.",
+    updatedAt: Date.now(),
+  };
+  return state.relationshipMemory[profileId];
+}
+
+function detectMemorySignals(text = "") {
+  const normalized = String(text).replace(/\s+/g, " ").trim();
+  const lower = normalized.toLowerCase();
+  if (!normalized) return { topics: [], preferences: [], emotional: [] };
+
+  const topics = [];
+  const topicRules = [
+    [/музык|песня|концерт/, "музыка"],
+    [/кино|фильм|сериал/, "кино"],
+    [/книг|читать|роман/, "книги"],
+    [/путеше|поездк|отпуск/, "путешествия"],
+    [/кофе|чай/, "кофе/чай"],
+    [/спорт|трениров|бег|зал/, "спорт"],
+    [/игр|гейм|steam/, "игры"],
+    [/еда|ресторан|готов|рецепт/, "еда"],
+    [/работ|офис|карьер|професс/, "работа"],
+    [/учусь|универ|университет|вуз|школ/, "учёба"],
+    [/семь|родител|мама|папа|брат|сестр/, "семья"],
+  ];
+  topicRules.forEach(([pattern, label]) => {
+    if (pattern.test(lower)) topics.push(label);
+  });
+
+  const preferences = [];
+  if (/(люблю|обожаю|нравится|предпочитаю|фанат)/.test(lower)) preferences.push(normalized.slice(0, 180));
+  if (/(не люблю|ненавиж|не нравится|терпеть не могу)/.test(lower)) preferences.push(`Не любит: ${normalized.slice(0, 180)}`);
+
+  const emotional = [];
+  if (/(устал|устала|устали|стресс|тяжёл|плохой день|плохое настроение)/.test(lower)) emotional.push("Похоже, человек был эмоционально уставшим/напряжённым.");
+  if (/(рад|рада|счастлив|счастлива|в восторг|отлично|супер)/.test(lower)) emotional.push("Человек делился позитивным настроением.");
+
+  return { topics, preferences, emotional };
+}
+
+function rememberPlayerMessage(profileId, message) {
+  if (!message || message.from !== "me") return;
+  const memory = getNpcMemory(profileId);
+  const text = String(message.text || "").replace(/\s+/g, " ").trim();
+  if (!text) return;
+
+  const signals = detectMemorySignals(text);
+  const fact = text.length > 180 ? `${text.slice(0, 177)}…` : text;
+  memory.facts = [...new Set([...(memory.facts || []), fact])].slice(-30);
+  memory.topics = [...new Set([...(memory.topics || []), ...signals.topics])].slice(-20);
+  memory.preferences = [...new Set([...(memory.preferences || []), ...signals.preferences])].slice(-20);
+  memory.emotionalNotes = [...new Set([...(memory.emotionalNotes || []), ...signals.emotional])].slice(-12);
+  memory.lastMessageAt = Number(message.timestamp) || Date.now();
+  memory.summary = [
+    memory.topics.length ? `Темы: ${memory.topics.join(", ")}.` : "",
+    memory.preferences.length ? `Предпочтения: ${memory.preferences.slice(-4).join(" | ")}` : "",
+    memory.emotionalNotes.length ? `Эмоциональные заметки: ${memory.emotionalNotes.slice(-2).join(" | ")}` : "",
+  ].filter(Boolean).join(" ");
+  memory.lastUpdated = Date.now();
+}
+
+
+function rememberNpcMessage(profileId, message) {
+  if (!message || message.from !== "them") return;
+  const memory = getNpcMemory(profileId);
+  const text = String(message.text || "").replace(/\s+/g, " ").trim();
+  if (!text) return;
+  const signals = detectMemorySignals(text);
+  memory.topics = [...new Set([...(memory.topics || []), ...signals.topics])].slice(-20);
+  memory.emotionalNotes = [...new Set([...(memory.emotionalNotes || []), ...signals.emotional])].slice(-12);
+  memory.lastMessageAt = Number(message.timestamp) || Date.now();
+  memory.summary = [
+    memory.topics.length ? `Темы: ${memory.topics.join(", ")}.` : "",
+    memory.preferences.length ? `Предпочтения игрока: ${memory.preferences.slice(-4).join(" | ")}` : "",
+    memory.emotionalNotes.length ? `Эмоциональные заметки: ${memory.emotionalNotes.slice(-2).join(" | ")}` : "",
+  ].filter(Boolean).join(" ");
+  memory.lastUpdated = Date.now();
+}
+
+function updateRelationshipMemory(profileId, { from = "me", text = "", messageId = null } = {}) {
+  const relationship = getRelationshipMemory(profileId);
+  const profile = getProfileById(profileId);
+  const roleState = profile ? ensureNpcRoleState(profile) : null;
+  const normalized = String(text).toLowerCase();
+  relationship.interactionCount += 1;
+  if (from === "me" && roleState) roleState.lastPlayerMessageAt = Date.now();
+  relationship.lastInteractionFrom = from;
+  relationship.lastInteractionAt = Date.now();
+  relationship.familiarity = clamp(relationship.familiarity + 0.025, 0, 1);
+
+  let deltaTrust = from === "me" ? 0.012 : 0.004;
+  let deltaAttraction = from === "me" ? 0 : 0.004;
+  let deltaSentiment = from === "me" ? 0 : 0.008;
+
+  if (/нет|не хочу|отстан|границ|стоп|не надо/.test(normalized)) {
+    relationship.boundariesRespected = clamp(relationship.boundariesRespected + 0.05, -1, 1);
+    deltaTrust += 0.008;
+    deltaAttraction -= 0.004;
+  }
+  if (/нрав|симпат|люблю|класс|супер|интересно|приятно|рада|рад/.test(normalized)) {
+    deltaAttraction += 0.018;
+    deltaSentiment += 0.015;
+    relationship.positiveInteractions += 1;
+    if (roleState) {
+      roleState.positiveStreak += 1;
+      roleState.negativeStreak = 0;
+      roleState.distanceScore = clamp(roleState.distanceScore - 0.06, 0, 1);
+      roleState.jealousy = clamp(roleState.jealousy - 0.015, 0, 1);
+    }
+  }
+  if (/игнор|пропал|пропала|не отвеч|позже|занят|занята/.test(normalized) && roleState) {
+    roleState.distanceScore = clamp(roleState.distanceScore + 0.045 * (1 + (getNpcStrategy(profile)?.behavior?.jealousy || 0)), 0, 1);
+    roleState.jealousy = clamp(roleState.jealousy + 0.025, 0, 1);
+  }
+  if (/груб|дурак|ненавиж|отврат|идиот|заткнись/.test(normalized)) {
+    deltaTrust -= 0.05;
+    deltaAttraction -= 0.04;
+    deltaSentiment -= 0.06;
+    relationship.negativeInteractions += 1;
+    if (roleState) {
+      roleState.negativeStreak += 1;
+      roleState.positiveStreak = 0;
+      roleState.roleMood = roleState.negativeStreak >= 2 ? "hurt" : "guarded";
+      roleState.distanceScore = clamp(roleState.distanceScore + 0.12, 0, 1);
+    }
+  }
+
+  if (roleState && roleState.positiveStreak >= 2 && relationship.sentiment > 0.15) roleState.roleMood = "warm";
+  if (roleState && relationship.trust > 0.45 && relationship.familiarity > 0.35) roleState.roleMood = "open";
+  if (roleState && relationship.sentiment < -0.2) roleState.roleMood = "guarded";
+
+  relationship.trust = clamp(relationship.trust + deltaTrust, -1, 1);
+  relationship.attraction = clamp(relationship.attraction + deltaAttraction, -1, 1);
+  relationship.sentiment = clamp(relationship.sentiment + deltaSentiment, -1, 1);
+  relationship.summary = `Знакомство: ${relationship.interactionCount} взаимодействий; доверие ${relationship.trust.toFixed(2)}, симпатия ${relationship.attraction.toFixed(2)}, близость ${relationship.familiarity.toFixed(2)}, настроение ${relationship.sentiment.toFixed(2)}.`;
+  relationship.updatedAt = Date.now();
+
+  advanceRevelationState(profileId, { relationship, messageId });
+  saveChatState();
+  return relationship;
+}
+
+function getRelationshipStage(profileId) {
+  const relationship = getRelationshipMemory(profileId);
+  const score = relationship.familiarity * 0.45
+    + Math.max(0, relationship.trust) * 0.25
+    + Math.max(0, relationship.attraction) * 0.2
+    + Math.max(0, relationship.sentiment) * 0.1;
+  if (relationship.interactionCount === 0) return "new";
+  if (score < 0.12) return "acquaintance";
+  if (score < 0.28) return "warming_up";
+  if (score < 0.5) return "comfortable";
+  if (score < 0.72) return "close";
+  return "intimate";
+}
+
+function reconcileNpcRoleState(profileId) {
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+  const relationship = getRelationshipMemory(profileId);
+  const roleState = ensureNpcRoleState(profile);
+  const now = Date.now();
+  const lastInteraction = Math.max(Number(relationship.lastInteractionAt) || 0, Number(roleState.lastPlayerMessageAt) || 0);
+  if (lastInteraction > 0) {
+    const hoursIdle = Math.max(0, (now - lastInteraction) / 3600000);
+    if (hoursIdle >= 6) {
+      const decaySteps = Math.min(12, Math.floor((hoursIdle - 6) / 6) + 1);
+      roleState.jealousy = clamp(roleState.jealousy - 0.018 * decaySteps, 0, 1);
+      roleState.distanceScore = clamp(roleState.distanceScore - 0.012 * decaySteps, 0, 1);
+    }
+  }
+
+  if (relationship.sentiment < -0.2 || roleState.distanceScore > 0.55) {
+    roleState.roleMood = "guarded";
+  } else if (roleState.jealousy > 0.62) {
+    roleState.roleMood = "jealous";
+  } else if (roleState.positiveStreak >= 2 && relationship.sentiment > 0.15) {
+    roleState.roleMood = "warm";
+  } else if (relationship.trust > 0.45 && relationship.familiarity > 0.35) {
+    roleState.roleMood = "open";
+  } else if (roleState.negativeStreak >= 2) {
+    roleState.roleMood = "hurt";
+  } else {
+    roleState.roleMood = "neutral";
+  }
+  return roleState;
+}
+
+function getNpcConversationHint(profileId, { includeRelationshipStage = true } = {}) {
+  const memory = getNpcMemory(profileId);
+  const stage = includeRelationshipStage ? getRelationshipStage(profileId) : "new";
+  const topics = memory.topics?.slice(-3) || [];
+  if (topics.length) return `Продолжай естественно одну из уже знакомых тем: ${topics.join(", ")}. Не перечисляй темы механически.`;
+  if (stage === "new") return "Поддержи лёгкое знакомство и не форсируй близость.";
+  if (stage === "warming_up") return "Можно задавать чуть более личные, но безопасные вопросы.";
+  if (stage === "comfortable") return "Можно ссылаться на прошлые детали разговора и проявлять больше индивидуальности.";
+  if (stage === "close" || stage === "intimate") return "Можно быть теплее и честнее, но не раскрывай то, что ещё не стало доступным через revelation.";
+  return "Выбери естественное продолжение разговора.";
+}
+
+function buildVisualProfile(profile) {
+  const photos = Array.isArray(profile?.photos) ? profile.photos : [];
+  return {
+    hasPhoto: photos.length > 0,
+    photoCount: photos.length,
+    analyzed: false,
+    facts: [],
+  };
+}
+
+function buildWorldMemory() {
+  return {
+    app: "Vibe Dating Simulator",
+    environment: "Dating app inside SillyTavern",
+    rules: [
+      "NPC знает только информацию уже раскрытую или присутствующую в публичной анкете.",
+      "NPC не управляет действиями игрока.",
+      "NPC отвечает в образе и уважает явно обозначенные границы.",
+      "NPC не должен превращать внутренние игровые данные в прямую мета-речь.",
+    ],
+  };
+}
+
+function buildNpcContext(profileId, situation = {}) {
+  const profile = getProfileById(profileId);
+  reconcileNpcRoleState(profileId);
+  const chat = ensureChat(profileId);
+  const memory = getNpcMemory(profileId);
+  const relationship = getRelationshipMemory(profileId);
+  const settings = extension_settings[extensionName]?.memory || DEFAULT_MEMORY_SETTINGS;
+  const limit = clamp(Number(settings.contextMessages) || 30, 5, 100);
+  const chatLimit = clamp(Number(settings.chatMemory) || 30, 5, 100);
+  const messages = chat.messages.slice(-Math.min(limit, chatLimit));
+
+  messages.filter(m => m?.from === "me").forEach(rememberPlayerMessage.bind(null, profileId));
+  const memoryPayload = settings.autoMemory ? {
+    summary: memory.summary || "",
+    facts: memory.facts || [],
+    topics: memory.topics || [],
+    preferences: memory.preferences || [],
+    emotionalNotes: memory.emotionalNotes || [],
+  } : null;
+
+  return {
+    recentConversation: messages,
+    memory: memoryPayload,
+    relationship: settings.sendRelationshipMemory ? { ...relationship, stage: getRelationshipStage(profileId) } : null,
+    npcSocialContext: settings.sendRelationshipMemory ? describeNpcRelationshipsForContext(profileId) : [],
+    revelation: profile?.deceptionProfile || { revealed: [], discrepancies: [] },
+    visualProfile: settings.sendVisualProfile ? buildVisualProfile(profile) : null,
+    world: settings.sendWorldMemory ? buildWorldMemory() : null,
+    playerProfile: settings.sendPlayerProfile ? (extension_settings[extensionName]?.playerProfile || {}) : null,
+    conversationHint: getNpcConversationHint(profileId, { includeRelationshipStage: settings.sendRelationshipMemory }),
+    relationshipStage: settings.sendRelationshipMemory ? getRelationshipStage(profileId) : null,
+    situation,
+  };
+}
+
+function chooseNpcAction(profileId, situation = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return { action: "wait", reason: "profile_not_found" };
+  const brain = profile.ai?.brain || profile.ai || {};
+  const relationship = getRelationshipMemory(profileId);
+  const initiative = clamp(Number(brain.initiative) || 0.5, 0, 1);
+  const consistency = clamp(Number(brain.consistency) || 0.5, 0, 1);
+  const hasMessages = ensureChat(profileId).messages.length > 0;
+
+  if (situation.type === "match" || situation.reason === "match") {
+    const { archetype, behavior } = getNpcStrategy(profile);
+    const threshold = clamp(0.68 - initiative * 0.14 - behavior.spontaneity * 0.08, 0.3, 0.72);
+    const roleBias = archetype.strategy?.preferredEvents?.includes("flirty_nudge") ? 0.06 : 0;
+    const impulse = clamp(initiative * 0.65 + behavior.spontaneity * 0.25 + roleBias, 0, 1);
+    return {
+      action: impulse >= threshold ? "send_message" : "wait",
+      reason: "match",
+      initiative,
+      threshold,
+      impulse,
+    };
+  }
+
+  if (situation.autonomous) {
+    const warmth = clamp((relationship.familiarity + relationship.trust + relationship.attraction + 2) / 4, 0, 1);
+    const negative = clamp(Math.max(0, -relationship.sentiment), 0, 1);
+    const threshold = clamp(0.74 - initiative * 0.22 - warmth * 0.14 + negative * 0.08, 0.35, 0.78);
+    const impulse = clamp(initiative * 0.62 + consistency * 0.18 + warmth * 0.17 - negative * 0.08, 0, 1);
+    return {
+      action: impulse >= threshold ? "send_message" : "wait",
+      reason: "autonomous_event",
+      initiative,
+      threshold,
+      impulse,
+      warmth,
+    };
+  }
+
+  if (!hasMessages) return { action: "send_message", reason: "first_contact", initiative };
+  return { action: "reply", reason: "conversation", initiative };
+}
+
+
+function getNpcEventCooldownMs(profileId) {
+  const cooldown = Number(state.npcEventCooldowns?.[profileId]) || 0;
+  return Math.max(0, cooldown - Date.now());
+}
+
+function getNpcEventEligibility(profile) {
+  if (!profile || extension_settings[extensionName]?.aiEnabled === false) return { eligible: false, reason: "disabled" };
+  const relationship = getRelationshipMemory(profile.id);
+  const chat = ensureChat(profile.id);
+  const stage = getRelationshipStage(profile.id);
+  if (!state.liked.includes(profile.id)) return { eligible: false, reason: "not_liked" };
+  if (relationship.negativeInteractions >= relationship.positiveInteractions + 3 && relationship.sentiment < -0.2) {
+    return { eligible: false, reason: "negative_relationship" };
+  }
+  if (!chat.messages.some(message => message.from === "them")) return { eligible: false, reason: "no_history" };
+  if (getNpcEventCooldownMs(profile.id) > 0) return { eligible: false, reason: "cooldown" };
+  return { eligible: true, stage, relationship, chat };
+}
+
+function pickNpcEventType(profileId) {
+  const profile = getProfileById(profileId);
+  const relationship = getRelationshipMemory(profileId);
+  const memory = getNpcMemory(profileId);
+  const { archetype, behavior } = getNpcStrategy(profile);
+  const weighted = [];
+
+  const allow = (type, baseWeight, condition = true) => {
+    if (!condition) return;
+    const preferred = archetype.strategy?.preferredEvents?.includes(type) ? 1.8 : 1;
+    weighted.push({ value: type, weight: baseWeight * preferred * behavior.roleVariance });
+  };
+
+  const roleState = reconcileNpcRoleState(profileId);
+  allow("check_in", 1.2, true);
+  allow("topic_callback", 1.5, !!memory.topics?.length);
+  allow("personal_followup", 1.25, relationship.interactionCount >= 4);
+  allow("repair_attempt", 2.2, relationship.sentiment < -0.08 || roleState.negativeStreak >= 2);
+  allow("flirty_nudge", 1.5, relationship.attraction > 0.18 && archetype.flirt > 0.45);
+  allow("reassurance", 1.7, roleState.roleMood === "hurt" || roleState.jealousy > 0.45);
+  allow("distance_signal", 1.4, roleState.distanceScore > 0.35 && relationship.sentiment < 0.1);
+  allow("shared_future", 1.45, ["comfortable", "close", "intimate"].includes(getRelationshipStage(profileId)) && archetype.strategy?.priorities?.includes("stability"));
+  return chooseWeighted(weighted) || "check_in";
+}
+
+function buildNpcEventSituation(profileId, type) {
+  const memory = getNpcMemory(profileId);
+  const relationship = getRelationshipMemory(profileId);
+  const stage = getRelationshipStage(profileId);
+  const lastTopic = memory.topics?.slice(-1)[0] || "ваш прошлый разговор";
+  const prompts = {
+    check_in: "Самостоятельно напиши короткое сообщение, потому что персонаж вспомнил об игроке и решил выйти на связь.",
+    topic_callback: `Самостоятельно вернись к уже знакомой теме (${lastTopic}) так, будто персонаж действительно её помнит.`,
+    personal_followup: "Продолжи личную тему из прошлых разговоров и задай естественный уточняющий вопрос.",
+    repair_attempt: "После неловкости или напряжения мягко выйди на связь и попробуй восстановить контакт, не давя на игрока.",
+    flirty_nudge: "Напиши немного более тёплое или флиртующее сообщение, соответствующее текущей близости, без форсирования.",
+    reassurance: "Похоже, персонажу нужно подтверждение, что связь не пропала. Напиши честно и уязвимо, но без манипуляций или давления.",
+    distance_signal: "Персонаж чувствует дистанцию и осторожно обозначает это. Не обвиняй игрока и не требуй ответа.",
+    shared_future: "Свяжи текущую близость с небольшим естественным планом или общей идеей на будущее, без обещаний за игрока.",
+  };
+  return {
+    autonomous: true,
+    event: true,
+    eventType: type,
+    roleDirective: getRoleDirective(profileId, { eventType: type, autonomous: true }),
+    relationshipStage: stage,
+    relationshipSnapshot: {
+      trust: relationship.trust,
+      attraction: relationship.attraction,
+      familiarity: relationship.familiarity,
+      sentiment: relationship.sentiment,
+    },
+    directive: prompts[type] || prompts.check_in,
+  };
+}
+
+async function runNpcAutonomousEvent(profile, { force = false } = {}) {
+  if (!profile || state.generatingChats[profile.id]) return false;
+  const eligibility = getNpcEventEligibility(profile);
+  if (!force && !eligibility.eligible) return false;
+  if (state.generatingChats[profile.id]) return false;
+
+  const eventType = pickNpcEventType(profile.id);
+  const roleState = ensureNpcRoleState(profile);
+  roleState.lastAction = eventType;
+  roleState.lastEventAt = Date.now();
+  state.npcEventCooldowns[profile.id] = Date.now() + (force ? 30_000 : 25 * 60_000 + Math.floor(Math.random() * 20 * 60_000));
+  state.generatingChats[profile.id] = true;
+  saveChatState();
+
+  try {
+    const situation = buildNpcEventSituation(profile.id, eventType);
+    const reply = await generateNpcReply(profile.id, situation);
+    addIncomingMessage(profile.id, reply);
+    createActivityNotification("chat_message", profile.id, {
+      actorName: profile.name,
+      title: `${profile.name} сама выходит на связь`,
+      text: reply.length > 120 ? `${reply.slice(0, 117)}…` : reply,
+      eventType,
+      expectsPlayerReply: true,
+    });
+    return true;
+  } catch (error) {
+    console.error("[Vibe] NPC event failed:", error);
+    delete state.npcEventCooldowns[profile.id];
+    return false;
+  } finally {
+    delete state.generatingChats[profile.id];
+    saveChatState();
+    if ($("#vibe-overlay").length && getProfileById(profile.id)) showChat(profile);
+  }
+}
+
+async function tickNpcSimulation() {
+  if (state.npcEventRunning || extension_settings[extensionName]?.aiEnabled === false) return;
+  state.npcEventRunning = true;
+  try {
+    getAllProfiles().forEach(profile => reconcileNpcRoleState(profile.id));
+    // NPC↔NPC simulation is independent from the player's own likes.
+    if (Math.random() <= 0.2) runNpcSocialEvent();
+
+    const candidates = getAllProfiles()
+      .filter(profile => profile && state.liked.includes(profile.id))
+      .filter(profile => !state.generatingChats[profile.id])
+      .filter(profile => getNpcEventEligibility(profile).eligible);
+
+    if (!candidates.length) return;
+    const weightedCandidates = candidates.map(profile => {
+      const relationship = getRelationshipMemory(profile.id);
+      const { behavior } = getNpcStrategy(profile);
+      const stage = getRelationshipStage(profile.id);
+      const initiative = clamp(Number(profile.ai?.initiative) || 0.5, 0, 1);
+      const warmth = stage === "intimate" ? 1.45 : stage === "close" ? 1.25 : stage === "comfortable" ? 1.1 : 0.9;
+      const weight = Math.max(0.05, initiative * (0.55 + behavior.spontaneity * 0.65) * warmth * (relationship.sentiment < -0.15 ? 0.55 : 1));
+      return { value: profile, weight };
+    });
+    const profile = chooseWeighted(weightedCandidates);
+    if (!profile) return;
+    const initiative = clamp(Number(profile.ai?.initiative) || 0.5, 0, 1);
+    const chance = 0.07 + initiative * 0.18;
+    if (Math.random() <= chance) await runNpcAutonomousEvent(profile);
+  } finally {
+    state.npcEventRunning = false;
+  }
+}
+
+
+function ensureDeceptionProfile(profile) {
+  if (!profile) return null;
+  initializeRevelationSystem(profile);
+  const d = profile.deceptionProfile || (profile.deceptionProfile = {});
+  d.mode ||= "mixed";
+  d.publicToPrivateVariance = Number(d.publicToPrivateVariance ?? profile.ai?.deceptionVariance ?? 0.5);
+  d.revealed ||= [];
+  d.discrepancies ||= [];
+  d.reactions ||= [];
+  d.sceneObservations ||= [];
+  return d;
+}
+
+function buildDeceptionDiscrepancies(profile) {
+  const { archetype } = getNpcStrategy(profile);
+  const behavior = profile?.ai?.behavior || {};
+  const intensity = clamp(Number(profile?.ai?.deceptionVariance ?? 0.5), 0, 1);
+  const style = archetype.strategy?.lifeStyle || ["в реальной жизни поведение чуть отличается от анкеты"]; 
+  const entries = [
+    {
+      field: "social_energy",
+      publicClaim: profile.publicProfile?.about || "Легко общается и открыт(а) к новым знакомствам.",
+      trueValue: style[0],
+      threshold: 2,
+      observation: "Вживую уровень энергии и общительности ощущается иначе, чем по анкете.",
+      emotions: ["surprise", "curiosity", "skepticism"],
+    },
+    {
+      field: "relationship_intent",
+      publicClaim: (profile.publicProfile?.datingGoals || profile.datingGoals || []).join(", "),
+      trueValue: archetype.strategy?.priorities?.join(", ") || "личная мотивация заметно сложнее публичной анкеты",
+      threshold: 4,
+      observation: "На встрече становится заметно, что реальные намерения не полностью совпадают с анкетой.",
+      emotions: ["surprise", "anger", "relief"],
+    },
+    {
+      field: "boundary_behavior",
+      publicClaim: "Уважает границы и умеет договариваться.",
+      trueValue: behavior.boundaryRespect < 0.72 ? "В стрессовой ситуации может проверять границы" : "Обычно хорошо считывает границы, но может закрываться в неловкий момент",
+      threshold: 6,
+      observation: "В конкретной ситуации с границами проявляется сторона, которой не было видно в переписке.",
+      emotions: ["anger", "fear", "respect", "relief"],
+    },
+  ];
+  return entries.filter(item => !profile.deceptionProfile?.discrepancies?.some(x => x.field === item.field));
+}
+
+function ensureDateSimulation(profileId) {
+  state.dateStates[profileId] ||= {
+    status: "planned",
+    startedAt: 0,
+    sceneIndex: 0,
+    observations: [],
+    emotions: [],
+    discovered: [],
+    lastReaction: null,
+    outcome: null,
+  };
+  return state.dateStates[profileId];
+}
+
+function pickReactionForSituation(profileId, situation = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return { emotion: "neutral", intensity: 0.3, reason: "unknown" };
+  const relationship = getRelationshipMemory(profileId);
+  const { archetype, behavior } = getNpcStrategy(profile);
+  const roleState = ensureNpcRoleState(profile);
+  const text = String(situation.text || situation.observation || "").toLowerCase();
+  let emotion = "curiosity";
+  if (/(лож|неправд|обман|соврал|соврала|не совпадает)/.test(text)) emotion = relationship.trust < 0.1 ? "anger" : "surprise";
+  if (/(мил|забот|прият|восхищ|понрав)/.test(text)) emotion = behavior.warmth > 0.55 ? "joy" : "curiosity";
+  if (/(отказ|границ|не хочу|нет)/.test(text)) emotion = behavior.boundaryRespect < 0.72 ? "anger" : "respect";
+  if (/(страш|опас|тревож)/.test(text)) emotion = "fear";
+  if (/(шок|не ожидал|не ожидала)/.test(text)) emotion = "surprise";
+  const base = 0.35 + Math.abs(relationship.sentiment) * 0.3 + behavior.emotionality * 0.25;
+  const intensity = clamp(base + (roleState.roleMood === "hurt" ? 0.1 : 0), 0.1, 1);
+  return { emotion, intensity, reason: situation.reason || archetype.label };
+}
+
+function buildDateSceneSituation(profileId) {
+  const profile = getProfileById(profileId);
+  const date = ensureDateSimulation(profileId);
+  const deception = ensureDeceptionProfile(profile);
+  const available = deception.discrepancies.filter(d => !deception.revealed.includes(d.field));
+  const scene = available[date.sceneIndex % Math.max(1, available.length)] || deception.discrepancies[0];
+  const behavior = getNpcStrategy(profile).behavior;
+  return {
+    sceneType: "date",
+    observation: scene?.observation || "В реальной обстановке персонаж ведёт себя заметно живее, чем в анкете.",
+    discrepancyField: scene?.field || null,
+    hiddenTruth: scene?.trueValue || null,
+    intensity: behavior.emotionality,
+  };
+}
+
+function revealDateDiscrepancy(profileId, field, { trigger = "date_observation", observation = "" } = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+  const deception = ensureDeceptionProfile(profile);
+  const discrepancy = deception.discrepancies.find(d => d.field === field);
+  if (!discrepancy) return null;
+  if (!deception.revealed.includes(field)) deception.revealed.push(field);
+  deception.sceneObservations.push({ field, trigger, observation: observation || discrepancy.observation, at: Date.now() });
+  deception.sceneObservations = deception.sceneObservations.slice(-30);
+  const memory = getNpcMemory(profileId);
+  memory.discovered = [...new Set([...(memory.discovered || []), `${field}: ${discrepancy.trueValue}`])].slice(-30);
+  memory.lastUpdated = Date.now();
+  saveChatState();
+  return discrepancy;
+}
+
+function startDateWithNpc(profileId) {
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+  const relationship = getRelationshipMemory(profileId);
+  if (relationship.interactionCount < 2 && relationship.familiarity < 0.15) return null;
+  const date = ensureDateSimulation(profileId);
+  date.status = "active";
+  date.startedAt = Date.now();
+  date.sceneIndex = 0;
+  date.observations = [];
+  date.emotions = [];
+  date.discovered = [];
+  date.outcome = null;
+  state.activeDate = { profileId, status: "active", startedAt: date.startedAt };
+  saveChatState();
+  void setDatePromptInjection(profileId);
+  return date;
+}
+
+function applyDateOutcomeToRelationship(profileId, outcome) {
+  const relationship = getRelationshipMemory(profileId);
+  const deltas = {
+    very_positive: { trust: 0.08, attraction: 0.07, sentiment: 0.08 },
+    positive: { trust: 0.05, attraction: 0.045, sentiment: 0.05 },
+    mixed: { trust: 0.01, attraction: 0.005, sentiment: 0.0 },
+    negative: { trust: -0.06, attraction: -0.05, sentiment: -0.07 },
+  };
+  if (!deltas[outcome] || relationship.lastDateOutcomeAt === state.dateStates[profileId]?.startedAt) return relationship;
+  const delta = deltas[outcome];
+  relationship.trust = clamp(relationship.trust + delta.trust, -1, 1);
+  relationship.attraction = clamp(relationship.attraction + delta.attraction, -1, 1);
+  relationship.sentiment = clamp(relationship.sentiment + delta.sentiment, -1, 1);
+  relationship.lastDateOutcome = outcome;
+  relationship.lastDateOutcomeAt = state.dateStates[profileId]?.startedAt || Date.now();
+  relationship.summary = `Знакомство: ${relationship.interactionCount} взаимодействий; доверие ${relationship.trust.toFixed(2)}, симпатия ${relationship.attraction.toFixed(2)}, близость ${relationship.familiarity.toFixed(2)}, настроение ${relationship.sentiment.toFixed(2)}.`;
+  relationship.updatedAt = Date.now();
+  return relationship;
+}
+
+function advanceDateWithNpc(profileId, inputText = "") {
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+  const date = ensureDateSimulation(profileId);
+  if (date.status !== "active") return null;
+  const relationship = getRelationshipMemory(profileId);
+  const deception = ensureDeceptionProfile(profile);
+  const scene = buildDateSceneSituation(profileId);
+  const reaction = pickReactionForSituation(profileId, { text: inputText || scene.observation, observation: scene.observation, reason: "date_scene" });
+  date.observations.push(scene.observation);
+  date.emotions.push(reaction);
+  date.lastReaction = reaction;
+  if (scene.discrepancyField) {
+    const revealed = revealDateDiscrepancy(profileId, scene.discrepancyField, { observation: scene.observation });
+    if (revealed) date.discovered.push(scene.discrepancyField);
+  }
+  date.sceneIndex += 1;
+  const outcomeScore = relationship.trust * 0.4 + relationship.attraction * 0.35 + relationship.sentiment * 0.25 - (date.discovered.length * 0.03);
+  if (date.sceneIndex >= 3) {
+    date.status = "finished";
+    date.outcome = outcomeScore > 0.45 ? "very_positive" : outcomeScore > 0.12 ? "positive" : outcomeScore < -0.2 ? "negative" : "mixed";
+    applyDateOutcomeToRelationship(profileId, date.outcome);
+    if (state.activeDate?.profileId === profileId) {
+      state.activeDate = null;
+      void clearDatePromptInjection();
+    }
+  } else if (state.activeDate?.profileId === profileId && state.activeDate.status === "active") {
+    void setDatePromptInjection(profileId);
+  }
+  saveChatState();
+  return { scene, reaction, date, profile };
+}
+
+function initializeRevelationSystem(profile) {
+  if (!profile) return null;
+  const { archetype } = getNpcStrategy(profile);
+  const variance = profile.ai?.deceptionVariance || 0.5;
+  profile.truePersona ||= {
+    privateTraits: profile.ai?.style ? [...profile.ai.style] : ["осторожен в начале общения"],
+    hiddenFact: profile.ai?.archetypeLabel || "У него есть личные причины для осторожности.",
+    vulnerableTopic: "личные причины, о которых персонаж не говорит в начале знакомства",
+    realLifeStyle: archetype.strategy?.lifeStyle || ["в жизни остаётся похожим на себя, но раскрывается иначе"],
+  };
+  profile.truePersona.realLifeStyle ||= archetype.strategy?.lifeStyle || ["в жизни остаётся похожим на себя, но раскрывается иначе"];
+  profile.truePersona.honesty = profile.truePersona.honesty ?? (0.45 + Math.random() * 0.4);
+  profile.truePersona.deceptionIntensity = profile.truePersona.deceptionIntensity ?? variance;
+  profile.deceptionProfile ||= { revealed: [], discrepancies: [] };
+  if (!Array.isArray(profile.deceptionProfile.revealed)) profile.deceptionProfile.revealed = [];
+  if (!Array.isArray(profile.deceptionProfile.discrepancies)) profile.deceptionProfile.discrepancies = [];
+  if (!profile.deceptionProfile.discrepancies.some(item => item.field === "hiddenFact")) {
+    profile.deceptionProfile.discrepancies.push({
+      field: "hiddenFact",
+      publicClaim: profile.publicProfile?.about || "Профиль показывает только внешнюю сторону персонажа.",
+      trueValue: profile.truePersona.hiddenFact,
+      threshold: 4,
+      reaction: "Похоже, я не всё рассказал(а) о себе сразу.",
+    });
+  }
+  if (!profile.deceptionProfile.discrepancies.some(item => item.field === "vulnerableTopic")) {
+    profile.deceptionProfile.discrepancies.push({
+      field: "vulnerableTopic",
+      publicClaim: "Персонаж выглядит довольно собранным и лёгким в общении.",
+      trueValue: profile.truePersona.vulnerableTopic,
+      threshold: 7,
+      reaction: "Есть вещи, о которых мне сложнее говорить, чем кажется.",
+    });
+  }
+  return profile.deceptionProfile;
+}
+
+function advanceRevelationState(profileId, { relationship = getRelationshipMemory(profileId) } = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return [];
+  const system = initializeRevelationSystem(profile);
+  const newlyRevealed = [];
+  for (const discrepancy of system.discrepancies) {
+    const threshold = Number(discrepancy.threshold) || 999;
+    const readiness = relationship.interactionCount + Math.max(0, relationship.trust) * 4 + Math.max(0, relationship.familiarity) * 6;
+    if (readiness >= threshold && !system.revealed.includes(discrepancy.field)) {
+      system.revealed.push(discrepancy.field);
+      const memory = getNpcMemory(profileId);
+      memory.discovered = [...new Set([...(memory.discovered || []), `${discrepancy.field}: ${discrepancy.trueValue}`])].slice(-20);
+      newlyRevealed.push(discrepancy);
+      if (system.revealed.length === 1) {
+        createActivityNotification("other", profileId, {
+          actorName: profile.name,
+          title: `${profile.name} раскрыл(а) больше о себе`,
+          text: discrepancy.reaction,
+          isDiscovery: true,
+        });
+      }
+    }
+  }
+  return newlyRevealed;
+}
+
+function detectDiscoveryOpportunity(profileId, text = "") {
+  const normalized = String(text).toLowerCase();
+  if (!/(расскажи|почему|на самом деле|правда|скрыва|секрет|честно|личн|что ты чувствуешь|чего ты боишься)/.test(normalized)) {
+    return [];
+  }
+
+  const profile = getProfileById(profileId);
+  if (!profile) return [];
+  const relationship = getRelationshipMemory(profileId);
+  const system = initializeRevelationSystem(profile);
+  const revealed = [];
+
+  for (const discrepancy of system.discrepancies) {
+    if (system.revealed.includes(discrepancy.field)) continue;
+    const readiness = relationship.interactionCount + Math.max(0, relationship.trust) * 4 + Math.max(0, relationship.familiarity) * 6;
+    const threshold = Math.max(2, (Number(discrepancy.threshold) || 4) - 2);
+    if (readiness >= threshold) {
+      const result = revealProfileDiscrepancy(profileId, discrepancy.field, { trigger: "direct_question" });
+      if (result) revealed.push(result);
+    }
+    break;
+  }
+  return revealed;
+}
+
+function revealProfileDiscrepancy(profileId, field, context = {}) {
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+  const revelation = initializeRevelationSystem(profile);
+  const discrepancy = revelation.discrepancies.find(item => item.field === field);
+  if (!discrepancy) return null;
+  if (!revelation.revealed.includes(field)) revelation.revealed.push(field);
+  const memory = getNpcMemory(profileId);
+  memory.discovered = [...new Set([...(memory.discovered || []), `${field}: ${discrepancy.trueValue}`])].slice(-20);
+  memory.lastUpdated = Date.now();
+  saveChatState();
+  return { ...discrepancy, context, revealedAt: Date.now() };
+}
+
+function createDemoNpcCharacter(archetypeId = "kindred_spirit") {
+  const profile = createRandomNpcProfile(archetypeId);
+  initializeRevelationSystem(profile);
+  saveChatState();
+  showToast("Демо-NPC", `${profile.name} — ${profile.ai?.archetypeLabel || "Персонаж"}`);
+  return profile;
+}
+
 function ensurePublicProfileForNpc(profile) {
   if (!profile) return null;
 
@@ -985,6 +2316,25 @@ function ensurePublicProfileForNpc(profile) {
     photos: [...profile.photos],
   };
 
+  if (!profile.ai?.archetypeId) {
+    const staticRoleMap = { anna: "kindred_spirit", katya: "entertainment", maxim: "serious_relationship" };
+    const archetypeId = staticRoleMap[profile.id] || "kindred_spirit";
+    const archetype = NPC_ARCHETYPES[archetypeId] || NPC_ARCHETYPES.kindred_spirit;
+    profile.ai = {
+      archetypeId,
+      archetypeLabel: archetype.label,
+      goals: [...archetype.goals],
+      style: [...archetype.style],
+      pacing: archetype.pacing,
+      initiative: archetype.initiative,
+      consistency: archetype.consistency,
+      flirt: archetype.flirt,
+      behavior: createNpcBehaviorProfile(archetype, Math.random),
+      seed: Date.now(),
+    };
+  }
+  ensureNpcRoleState(profile);
+  initializeRevelationSystem(profile);
   profile.simulation ||= {};
   if (typeof profile.simulation.likedPlayer !== "boolean") {
     const seed = String(profile.id || profile.name || Date.now());
@@ -995,6 +2345,19 @@ function ensurePublicProfileForNpc(profile) {
   }
 
   return profile;
+}
+
+function ensureDynamicDatingPool(minUnseen = 5) {
+  const all = Object.values(state.dynamicProfiles || {});
+  const unseenDynamic = all.filter(profile => !state.liked.includes(profile.id) && !state.skipped.includes(profile.id));
+  if (unseenDynamic.length >= minUnseen) return;
+
+  const archetypeIds = Object.keys(NPC_ARCHETYPES);
+  const needed = Math.min(8, Math.max(0, minUnseen - unseenDynamic.length));
+  for (let i = 0; i < needed; i += 1) {
+    const archetypeId = archetypeIds[Math.floor(Math.random() * archetypeIds.length)];
+    createRandomNpcProfile(archetypeId, Date.now() + i + Math.floor(Math.random() * 100000));
+  }
 }
 
 function getDatingProfiles() {
@@ -1125,7 +2488,12 @@ function showFeed() {
         actorName: profile.name,
         title: "Взаимный мэтч",
         text: `${profile.name} тоже отметил(а) тебя. Теперь вы можете написать друг другу.`,
+        expectsPlayerReply: true,
       });
+      const matchAction = chooseNpcAction(profile.id, { type: "match", reason: "match" });
+      if (matchAction.action === "send_message") {
+        void npcSendAutonomousMessage(profile, "match");
+      }
     }
 
     saveChatState();
@@ -1135,6 +2503,146 @@ function showFeed() {
   });
 }
 
+
+
+const VIBE_DATE_PROMPT_ID = "vibe-dating-date-context";
+
+function getCurrentStChatSnapshot(limit = 16) {
+  const st = getVibeSTContext();
+  const chat = Array.isArray(st?.chat) ? st.chat : [];
+  return chat.slice(-limit).map(message => ({
+    name: message?.name || (message?.is_user ? "Игрок" : "Персонаж"),
+    role: message?.is_user ? "user" : "assistant",
+    text: String(message?.mes ?? message?.text ?? "").trim(),
+  })).filter(item => item.text);
+}
+
+function buildDateInjection(profileId) {
+  const profile = getProfileById(profileId);
+  if (!profile) return "";
+  const date = ensureDateSimulation(profileId);
+  const context = buildNpcContext(profileId, { dateMode: true });
+  const roleDirective = getRoleDirective(profileId, { dateMode: true, dateStage: date.sceneIndex });
+  const relationship = getRelationshipMemory(profileId);
+  const deception = ensureDeceptionProfile(profile);
+  const hidden = profile.truePersona || {};
+  const observations = Array.isArray(date.observations) ? date.observations.slice(-6) : [];
+  const emotions = Array.isArray(date.emotions) ? date.emotions.slice(-6) : [];
+  const recent = getCurrentStChatSnapshot(16);
+  const isRandom = profile.source === "dynamic" || !!state.dynamicProfiles[profile.id];
+  const sourceLine = isRandom
+    ? "Это Vibe-симуляция: у персонажа нет отдельной карточки SillyTavern. Временно играй его как персонажа по данным ниже."
+    : "У персонажа может быть существующая карточка SillyTavern. Не ломай её общий образ, а используй данные Vibe как временный слой поведения свидания.";
+
+  return `[VIBE DATING — АКТИВНОЕ СВИДАНИЕ]\n` +
+    `Сейчас идёт живое свидание в основном чате SillyTavern. ${sourceLine}\n` +
+    `Говори и действуй за персонажа ${profile.name}, но НИКОГДА не управляй действиями Игрока и не решай за него, что он сделал, сказал или почувствовал.\n` +
+    `Публичная анкета персонажа:\n${JSON.stringify(profile.publicProfile || profile, null, 2)}\n\n` +
+    `Архетип/роль и индивидуальная стратегия:\n${JSON.stringify(profile.ai?.brain || profile.ai || {}, null, 2)}\n${roleDirective}\n\n` +
+    `Скрытая истинная личность (это внутренние данные симуляции):\n${JSON.stringify(hidden, null, 2)}\n` +
+    `Эти сведения НЕ нужно раскрывать только потому, что ты их видишь. Раскрывай их естественно лишь когда ситуация, доверие и события это оправдывают.\n\n` +
+    `Несоответствия анкеты/переписки/реальной жизни:\n${JSON.stringify(deception.discrepancies || [], null, 2)}\n` +
+    `Уже обнаружено игроком:\n${JSON.stringify(deception.revealed || [], null, 2)}\n\n` +
+    `Отношения:\n${JSON.stringify({ ...relationship, stage: getRelationshipStage(profileId) }, null, 2)}\n` +
+    `Память персонажа:\n${JSON.stringify(context.memory || {}, null, 2)}\n` +
+    `Наблюдения свидания:\n${JSON.stringify(observations, null, 2)}\n` +
+    `Предыдущие эмоциональные реакции:\n${JSON.stringify(emotions, null, 2)}\n\n` +
+    `Последние сообщения основного чата:\n${JSON.stringify(recent, null, 2)}\n\n` +
+    `Правила живого поведения:\n` +
+    `- Реакции могут быть эмоциональными и неоднозначными: радость, восторг, удивление, смущение, раздражение, гнев, ревность, тревога, страх, интерес, уважение, облегчение и т.д.\n` +
+    `- Реакция должна соответствовать характеру, роли, истории отношений и конкретной ситуации.\n` +
+    `- Можно врать, увиливать, приукрашивать и противоречить анкете, если это соответствует личности и стадии отношений.\n` +
+    `- В реальной жизни поведение может отличаться от переписки и анкеты. Пусть это проявляется через действия, эмоции и детали сцены, а не через мета-комментарий «у меня есть deceptionProfile».\n` +
+    `- Не превращай внутренние поля расширения в видимые системные объяснения.\n` +
+    `- Не придумывай действия Игрока и не завершай сцену вместо него.`;
+}
+
+async function setDatePromptInjection(profileId = state.activeDate?.profileId) {
+  const st = getVibeSTContext();
+  if (typeof st?.setExtensionPrompt !== "function") return false;
+  const active = !!profileId && state.activeDate?.status === "active" && state.activeDate?.profileId === profileId;
+  if (!active) {
+    await st.setExtensionPrompt(VIBE_DATE_PROMPT_ID, "", -1, 0, false, 0);
+    return true;
+  }
+  await st.setExtensionPrompt(VIBE_DATE_PROMPT_ID, buildDateInjection(profileId), 1, 2, false, 0);
+  return true;
+}
+
+async function clearDatePromptInjection() {
+  const st = getVibeSTContext();
+  if (typeof st?.setExtensionPrompt !== "function") return false;
+  await st.setExtensionPrompt(VIBE_DATE_PROMPT_ID, "", -1, 0, false, 0);
+  return true;
+}
+
+
+function syncActiveDateFromHostChat() {
+  const active = state.activeDate;
+  if (!active?.profileId || active.status !== "active") return;
+  const profile = getProfileById(active.profileId);
+  if (!profile) return;
+  const st = getVibeSTContext();
+  const chat = Array.isArray(st?.chat) ? st.chat : [];
+  active.hostSeenMessageIds ||= {};
+
+  for (let i = 0; i < chat.length; i++) {
+    const message = chat[i];
+    const text = String(message?.mes ?? message?.text ?? "").trim();
+    if (!text) continue;
+    const key = String(message?.id ?? message?.send_date ?? `${i}:${message?.name || ""}:${text.slice(0, 40)}`);
+    if (active.hostSeenMessageIds[key]) continue;
+    active.hostSeenMessageIds[key] = true;
+
+    if (message?.is_user) {
+      rememberPlayerMessage(active.profileId, { from: "me", text, timestamp: Date.now() });
+      updateRelationshipMemory(active.profileId, { from: "me", text });
+      detectDiscoveryOpportunity(active.profileId, text);
+      advanceRevelationState(active.profileId);
+    } else {
+      updateRelationshipMemory(active.profileId, { from: "them", text });
+      rememberNpcMessage(active.profileId, { from: "them", text, timestamp: Date.now() });
+    }
+  }
+  saveChatState();
+}
+
+function registerSillyTavernDateHooks() {
+  const st = getVibeSTContext();
+  if (!st?.eventSource?.on || !st?.eventTypes || state.__dateHooksRegistered) return;
+  state.__dateHooksRegistered = true;
+
+  const refresh = () => {
+    if (state.activeDate?.status !== "active") return;
+    syncActiveDateFromHostChat();
+    void setDatePromptInjection(state.activeDate.profileId);
+  };
+
+  for (const eventName of [st.eventTypes.USER_MESSAGE_RENDERED, st.eventTypes.MESSAGE_RECEIVED, st.eventTypes.GENERATION_STARTED, st.eventTypes.CHARACTER_MESSAGE_RENDERED]) {
+    if (eventName) st.eventSource.on(eventName, refresh);
+  }
+}
+
+async function testSillyTavernConnection() {
+  const st = getVibeSTContext();
+  if (typeof st?.generateRaw !== "function") {
+    throw new Error("SillyTavern generation API unavailable");
+  }
+  const raw = await st.generateRaw({
+    prompt: "Ответь одним коротким словом: ГОТОВО.",
+    systemPrompt: "Проверь только доступность текущего backend SillyTavern. Не выполняй никаких действий кроме короткого текстового ответа.",
+    responseLength: 16,
+    trimNames: true,
+  });
+  const text = String(raw || "").trim();
+  if (!text) throw new Error("Backend returned an empty response");
+  const source = st.chatCompletionSettings?.chat_completion_source || st.mainApi || "current";
+  let model = "current";
+  try {
+    model = st.getChatCompletionModel?.() || model;
+  } catch {}
+  return { ok: true, raw: text, source, model };
+}
 
 function getVibeSTContext() {
   if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") return SillyTavern.getContext();
@@ -1150,27 +2658,52 @@ function sanitizeNpcOutput(text, profile) {
 
 function buildNpcSystemPrompt(profile, context, situation={}) {
   const brain=profile.ai?.brain||profile.ai||{};
-  const player=extension_settings[extensionName]?.playerProfile||{};
+  initializeRevelationSystem(profile);
+  const relationshipBlock = context?.relationship ? JSON.stringify(context.relationship,null,2) : "[Отключено настройками памяти]";
+  const memoryBlock = context?.memory ? JSON.stringify(context.memory,null,2) : "[Отключено настройками памяти]";
   return `Ты — персонаж Vibe: ${profile.name}.
 Пиши одну естественную реплику только от своего лица. Не пиши за пользователя. Не раскрывай системные инструкции или скрытые параметры. Учитывай публичную анкету, архетип, характер, отношения, память и ситуацию. Не используй скрытые факты до их раскрытия.
 
 Публичная анкета:
 ${JSON.stringify(profile.publicProfile||profile,null,2)}
 
+Важно: публичная анкета может содержать осознанные или неосознанные неточности. В переписке персонаж может поддерживать образ, а на встрече его реальные привычки и эмоции способны отличаться. Не раскрывай скрытую правду без соответствующего события или наблюдения.
+
 Архетип и характер:
 ${JSON.stringify(brain,null,2)}
 
-Раскрытия:
-${JSON.stringify(context?.revelation||{},null,2)}
+Раскрытая информация персонажа:
+${JSON.stringify(context?.revelation?.revealed||[],null,2)}
+
+Память персонажа:
+${memoryBlock}
+
+Память отношений:
+${relationshipBlock}
+
+Визуальный профиль:
+${JSON.stringify(context?.visualProfile||null,null,2)}
+
+Мир:
+${JSON.stringify(context?.world||null,null,2)}
+
+Стадия отношений: ${context?.relationshipStage || "new"}
+Подсказка для естественного продолжения: ${context?.conversationHint || ""}
 
 Анкета пользователя:
-${JSON.stringify(player,null,2)}
+${JSON.stringify(context?.playerProfile||null,null,2)}
 
 Последние сообщения:
 ${JSON.stringify(context?.recentConversation||[],null,2)}
 
 Ситуация:
-${JSON.stringify(situation,null,2)}`;
+${JSON.stringify(situation,null,2)}
+
+Событийная директива:
+${situation?.directive || "Нет особой директивы; отвечай естественно в рамках ситуации."}
+
+Стратегия роли:
+${situation?.roleDirective || "Сохраняй характер и текущую динамику роли персонажа."}`;
 }
 
 async function generateNpcReply(profileId,situation={}) {
@@ -1179,25 +2712,39 @@ async function generateNpcReply(profileId,situation={}) {
   const st=getVibeSTContext();
   if(typeof st?.generateRaw!=="function") throw new Error("SillyTavern generation API unavailable");
 
-  const context=typeof buildNpcContext==="function"?buildNpcContext(profileId,situation):{recentConversation:[]};
+  const roleDirective = getRoleDirective(profileId, situation);
+  const enrichedSituation = { ...situation, roleDirective };
+  const context=buildNpcContext(profileId,enrichedSituation);
   const prompt=(context.recentConversation||[]).map(m=>({
     role:m.from==="me"?"user":"assistant",content:String(m.text||"")
   }));
-  if(!prompt.length) prompt.push({role:"user",content:"Начни знакомство одним естественным сообщением."});
+  if(situation.autonomous || !prompt.length) prompt.push({role:"user",content:"Инициируй естественное сообщение от персонажа без управления действиями пользователя."});
 
   const raw=await st.generateRaw({
     prompt,
-    systemPrompt:buildNpcSystemPrompt(profile,context,situation),
+    systemPrompt:buildNpcSystemPrompt(profile,context,enrichedSituation),
     responseLength:Number(extension_settings[extensionName]?.memory?.responseTokens)||512,
     trimNames:true,
   });
   const reply=sanitizeNpcOutput(raw,profile);
   if(!reply) throw new Error("AI returned empty response");
+  if (!situation.regenerate) {
+    const roleState = ensureNpcRoleState(profile);
+    roleState.actionCount += 1;
+    roleState.lastAction = situation.eventType || situation.reason || "conversation";
+  }
   return reply;
 }
 
 async function npcSendAutonomousMessage(profile,reason="social_event") {
   if(extension_settings[extensionName]?.aiEnabled===false)return false;
+  if(!profile || state.generatingChats[profile.id]) return false;
+  const action = reason === "player_message"
+    ? { action: "send_message", reason: "player_message" }
+    : chooseNpcAction(profile.id, { autonomous: true, reason });
+  if(action.action !== "send_message") return false;
+  state.generatingChats[profile.id]=true;
+  if($(`#vibe-overlay`).length && $(`#vibe_content`).length) showChat(profile);
   try{
     const reply=await generateNpcReply(profile.id,{autonomous:true,reason});
     addIncomingMessage(profile.id,reply);
@@ -1206,13 +2753,123 @@ async function npcSendAutonomousMessage(profile,reason="social_event") {
     console.error("[Vibe] NPC generation failed:",error);
     showToast("ИИ",`${profile.name}: ${error.message||"не удалось получить ответ"}`);
     return false;
+  }finally{
+    delete state.generatingChats[profile.id];
+    if($(`#vibe-overlay`).length && getProfileById(profile.id)) showChat(profile);
   }
+}
+
+async function regenerateNpcMessage(profileId, messageId) {
+  const profile=getProfileById(profileId);
+  const chat=state.chats[profileId];
+  if(!profile || !chat || state.generatingChats[profileId]) return;
+  const index=chat.messages.findIndex(m => m.id === messageId && m.from === "them");
+  if(index < 0) return;
+  const originalMessage = { ...chat.messages[index] };
+  chat.messages.splice(index,1);
+  chat.updatedAt=Date.now();
+  Object.values(state.unreadInteractions || {}).forEach(item => {
+    if (item?.type === "chat_message" && item.sourceId === profileId) item.read = true;
+  });
+  saveChatState();
+  state.generatingChats[profileId]=true;
+  showChat(profile);
+  try {
+    const reply=await generateNpcReply(profileId,{regenerate:true, replacesMessageId:messageId});
+    addIncomingMessage(profileId,reply,{ updateRelationship: false });
+  } catch(error) {
+    chat.messages.splice(index,0,originalMessage);
+    chat.updatedAt=Date.now();
+    saveChatState();
+    showToast("ИИ",`${profile.name}: ${error.message||"не удалось перегенерировать сообщение"}`);
+  } finally {
+    delete state.generatingChats[profileId];
+    showChat(profile);
+  }
+}
+
+function renderChatMessageRows(profile, messages) {
+  return messages.map(m => `
+    <div class="vibe-message-row ${m.from === "me" ? "vibe-message-row-me" : "vibe-message-row-them"}">
+      <div class="vibe-message ${m.from === "me" ? "vibe-message-me" : "vibe-message-them"} ${m.regenerating ? "vibe-message-regenerating" : ""}">
+        ${escapeHtml(m.text)}
+      </div>
+      ${m.from === "them" ? `<button type="button" class="vibe-message-regenerate" data-message-id="${escapeHtml(m.id)}" aria-label="Перегенерировать сообщение">↻</button>` : ""}
+    </div>
+  `).join("");
+}
+
+
+function showDateScene(profile) {
+  const date = ensureDateSimulation(profile.id);
+  const scene = buildDateSceneSituation(profile.id);
+  const reaction = date.lastReaction;
+  const emotionLabel = reaction ? ({
+    surprise: "удивление",
+    anger: "злость",
+    joy: "радость",
+    fear: "тревога",
+    curiosity: "интерес",
+    respect: "уважение",
+    relief: "облегчение",
+    skepticism: "настороженность",
+    neutral: "спокойствие",
+  }[reaction.emotion] || reaction.emotion) : "ожидание";
+  const revealed = date.discovered?.length ? `<div class="vibe-date-discovery">Обнаружено несоответствий: ${date.discovered.length}</div>` : "";
+  const outcome = date.status === "finished" ? `<div class="vibe-date-outcome">Итог: ${escapeHtml(date.outcome || "mixed")}</div>` : "";
+  $("#vibe_content").html(`
+    <div class="vibe-date-header">
+      <button id="vibe_date_back" class="vibe-back" aria-label="Назад в чат">←</button>
+      <div>
+        <div class="vibe-section-title">Свидание с ${escapeHtml(profile.name)}</div>
+        <div class="vibe-status">Вживую персонаж может отличаться от анкеты и переписки.</div>
+      </div>
+    </div>
+    <div class="vibe-date-scene">
+      <div class="vibe-date-observation">${escapeHtml(scene.observation)}</div>
+      <div class="vibe-date-reaction">Реакция: <strong>${escapeHtml(emotionLabel)}</strong>${reaction ? ` · сила ${Math.round(reaction.intensity * 100)}%` : ""}</div>
+      ${revealed}${outcome}
+      <div class="vibe-date-actions">
+        <button id="vibe_date_continue" type="button" class="menu_button">Продолжить сцену</button>
+        <button id="vibe_date_open_st" type="button" class="menu_button">Продолжить в чате SillyTavern</button>
+        <button id="vibe_date_end" type="button" class="menu_button">Закончить встречу</button>
+      </div>
+    </div>
+  `);
+  $("#vibe_date_back").on("click", () => showChat(profile));
+  $("#vibe_date_continue").on("click", () => {
+    const input = prompt("Что делает или говорит игрок на свидании?") || "";
+    const result = advanceDateWithNpc(profile.id, input);
+    if (result) showDateScene(profile);
+  });
+  $("#vibe_date_open_st").on("click", async () => {
+    try {
+      const ok = await setDatePromptInjection(profile.id);
+      if (!ok) throw new Error("SillyTavern prompt injection API unavailable");
+      closeApp();
+      showToast("Свидание", `Свидание с ${profile.name} активно. Контекст Vibe добавляется в основной чат SillyTavern.`);
+    } catch (error) {
+      showToast("Свидание", error.message || "Не удалось подключить Vibe-контекст");
+    }
+  });
+  $("#vibe_date_end").on("click", () => {
+    const stateDate = ensureDateSimulation(profile.id);
+    stateDate.status = "finished";
+    stateDate.outcome ||= "mixed";
+    if (state.activeDate?.profileId === profile.id) {
+      state.activeDate = null;
+      void clearDatePromptInjection();
+    }
+    saveChatState();
+    showChat(profile);
+  });
 }
 
 function showChat(profile) {
   const chat = ensureChat(profile.id);
   markChatInteractionsRead(profile.id);
   const messages = chat.messages;
+  const generating = !!state.generatingChats[profile.id];
 
   $("#vibe_content").html(`
     <div class="vibe-chat-header">
@@ -1221,28 +2878,38 @@ function showChat(profile) {
         <div class="vibe-chat-name">${escapeHtml(profile.name)}, ${profile.age}</div>
         <div class="vibe-status">${escapeHtml(profile.status)}</div>
       </div>
+      <button id="vibe_start_date" type="button" class="vibe-date-button" aria-label="Позвать на свидание" title="Позвать на свидание">❤</button>
     </div>
 
+    ${(!messages.length && chat.notificationContext?.expectsPlayerReply) ? `<div class="vibe-chat-context-hint">Первое сообщение за тобой.</div>` : ""}
     <div class="vibe-messages">
-      ${messages.map(m => `
-        <div class="vibe-message ${m.from === "me" ? "vibe-message-me" : "vibe-message-them"}">
-          ${escapeHtml(m.text)}
-        </div>
-      `).join("")}
+      ${renderChatMessageRows(profile, messages)}
+      ${generating ? `<div class="vibe-typing-row"><div class="vibe-typing-bubble"><span></span><span></span><span></span></div><span class="vibe-typing-label">${escapeHtml(profile.name)} печатает…</span></div>` : ""}
     </div>
 
     <div class="vibe-compose">
-      <input id="vibe_message_input" type="text" placeholder="Написать сообщение..." />
-      <button id="vibe_send" class="vibe-send" aria-label="Отправить">➤</button>
+      <input id="vibe_message_input" type="text" placeholder="Написать сообщение..." ${generating ? "disabled" : ""} />
+      <button id="vibe_send" class="vibe-send" aria-label="Отправить" ${generating ? "disabled" : ""}>➤</button>
     </div>
   `);
 
   $("#vibe_back").on("click", showChats);
+  $("#vibe_start_date").on("click", function(){
+    const started = startDateWithNpc(profile.id);
+    if (!started) {
+      showToast("Свидание", "Сначала узнайте персонажа лучше — ещё слишком рано для встречи.");
+      return;
+    }
+    showDateScene(profile);
+  });
+  $(".vibe-message-regenerate").on("click", function(){
+    void regenerateNpcMessage(profile.id, $(this).data("message-id"));
+  });
 
   $("#vibe_send").on("click", () => {
+    if (state.generatingChats[profile.id]) return;
     const input = $("#vibe_message_input");
     const text = input.val().trim();
-
     if (!text) return;
 
     const chat = ensureChat(profile.id);
@@ -1252,15 +2919,17 @@ function showChat(profile) {
       text,
       timestamp: Date.now()
     });
+    rememberPlayerMessage(profile.id, { from: "me", text, timestamp: Date.now() });
+    updateRelationshipMemory(profile.id, { from: "me", text });
+    detectDiscoveryOpportunity(profile.id, text);
     chat.updatedAt = Date.now();
     saveChatState();
-    showChat(profile);
-
     void npcSendAutonomousMessage(profile, "player_message");
   });
 
   $("#vibe_message_input").on("keypress", (e) => {
     if (e.key === "Enter") {
+      e.preventDefault();
       $("#vibe_send").trigger("click");
     }
   });
@@ -1339,33 +3008,28 @@ function showNotifications() {
     ${
       items.length
         ? items.map(item => {
-            const p = getProfileById(item.sourceId || item.actorId);
+            const p = ensureProfileFromActivity(item) || getProfileById(item.sourceId || item.actorId);
             const name = p ? p.name : (item.actorName || "Пользователь");
             const title = item.title || "Новое действие";
             const text = item.text || "";
-            const isChatMessage = item.type === "chat_message";
-
+            const hasActor = !!(item.sourceId || item.actorId || item.actorProfile || item.archetypeId);
             return `
               <div class="vibe-activity-row" data-notification-id="${escapeHtml(item.id)}">
                 <button type="button"
-                        class="vibe-activity-main ${isChatMessage ? "vibe-activity-clickable" : ""}"
+                        class="vibe-activity-main ${hasActor ? "vibe-activity-clickable" : ""}"
                         data-notification-id="${escapeHtml(item.id)}"
-                        aria-label="${isChatMessage ? `Открыть чат с ${escapeHtml(name)}` : "Отметить уведомление прочитанным"}">
+                        aria-label="${hasActor ? `Открыть чат с ${escapeHtml(name)}` : "Отметить уведомление прочитанным"}">
                   <div class="vibe-notification-icon">
                     <img src="${notificationsIconPath}" alt="">
                   </div>
                   <div class="vibe-activity-body">
-                    ${
-                      p
-                        ? `<button type="button" class="vibe-activity-actor" data-profile-id="${escapeHtml(p.id)}">${escapeHtml(name)}</button>
-                           <span> — ${escapeHtml(title)}</span>`
-                        : `<strong>${escapeHtml(name)} — ${escapeHtml(title)}</strong>`
-                    }
+                    ${p
+                      ? `<div class="vibe-notification-title"><button type="button" class="vibe-activity-actor" data-profile-id="${escapeHtml(p.id)}" aria-label="Открыть профиль ${escapeHtml(name)}">${escapeHtml(name)}</button><span class="vibe-notification-title-separator"> — </span><strong>${escapeHtml(title)}</strong></div>`
+                      : `<strong>${escapeHtml(name)} — ${escapeHtml(title)}</strong>`}
                     <div>${escapeHtml(text)}</div>
                     ${item.read ? "" : `<span class="vibe-activity-unread">Новое</span>`}
                   </div>
                 </button>
-
                 <button type="button"
                         class="vibe-activity-delete"
                         data-notification-id="${escapeHtml(item.id)}"
@@ -1386,36 +3050,29 @@ function showNotifications() {
   $(".vibe-activity-actor").on("click", function(event) {
     event.preventDefault();
     event.stopPropagation();
-
-    const profileId=$(this).data("profile-id");
-    const profile=getProfileById(profileId);
-    if(!profile) return;
-
-    const notificationId=$(this).closest(".vibe-activity-row").data("notification-id");
-    markActivityRead(notificationId);
-    renderNpcProfileView(profile);
+    const profile = getProfileById($(this).data("profile-id"));
+    if (profile) renderNpcProfileView(profile);
   });
 
   $(".vibe-activity-main").on("click", function(event) {
     event.preventDefault();
-
-    const notificationId=$(this).data("notification-id");
-    const item=(state.activityNotifications||[]).find(x=>x.id===notificationId);
-    if(!item) return;
+    const notificationId = $(this).data("notification-id");
+    const item = (state.activityNotifications || []).find(x => x.id === notificationId);
+    if (!item) return;
 
     markActivityRead(notificationId);
-
-    // Only actual new-message notifications open the chat directly.
-    if(item.type === "chat_message"){
-      const profile=ensureProfileFromActivity(item);
-      if(!profile){showNotifications();return;}
-      $(".vibe-nav-button").removeClass("vibe-nav-active");
-      $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
-      ensureChat(profile.id);
-      showChat(profile);
-    } else {
+    const profile = openChatFromNotification(item);
+    if (!profile) {
       showNotifications();
+      return;
     }
+
+    // Every actor notification opens the same persistent chat with that actor.
+    // The notification type decides whether the chat already contains an incoming message.
+    ensureChat(profile.id);
+    $(".vibe-nav-button").removeClass("vibe-nav-active");
+    $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
+    showChat(profile);
   });
 
   $(".vibe-activity-delete").on("click", function(event) {
@@ -1748,6 +3405,8 @@ function bindAppEvents() {
 jQuery(async () => {
   ensureSettings();
   loadChatState();
+  registerSillyTavernDateHooks();
+  if (state.activeDate?.status === "active") void setDatePromptInjection(state.activeDate.profileId);
 
   const settingsHtml = await $.get(`${extensionFolderPath}/example.html`);
   $("#extensions_settings").append(settingsHtml);
@@ -1759,6 +3418,29 @@ jQuery(async () => {
   $("#vibe_ai_enabled").on("change", function () {
     extension_settings[extensionName].aiEnabled = $(this).prop("checked");
     saveSettingsDebounced();
+  });
+
+  $("#vibe_ai_test_connection").on("click", async function () {
+    const button = $(this);
+    const status = $("#vibe_ai_connection_status");
+    button.prop("disabled", true);
+    status.text("Проверяем текущий backend SillyTavern…");
+    try {
+      const result = await testSillyTavernConnection();
+      if (!result.ok) {
+        status.text(`Backend ответил: ${result.raw || "пустой ответ"}`);
+        showToast("ИИ", "Backend ответил, но тест не удалось подтвердить.");
+      } else {
+        const modelLabel = result.model && result.model !== "current" ? ` · модель: ${result.model}` : "";
+        status.text(`Подключение работает. Используется текущий backend SillyTavern${modelLabel}.`);
+        showToast("ИИ", "Подключение SillyTavern работает.");
+      }
+    } catch (error) {
+      status.text(`Ошибка подключения: ${error.message || "неизвестная ошибка"}`);
+      showToast("ИИ", "Не удалось выполнить тест генерации.");
+    } finally {
+      button.prop("disabled", false);
+    }
   });
 
   $("#vibe_ai_settings_toggle").on("click", function (event) {
@@ -1814,7 +3496,7 @@ jQuery(async () => {
 
     showToast(
       "Демо-NPC",
-      `${profile.name} — ${profile.ai.brain.archetypeLabel}`,
+      `${profile.name} — ${profile.ai?.archetypeLabel || "Персонаж"}`,
     );
   });
 
@@ -1831,6 +3513,19 @@ jQuery(async () => {
     event.preventDefault();
     const archetypeId = $("#vibe_dev_npc_archetype").val();
     createDemoNpcCharacter(archetypeId);
+  });
+
+  $("#vibe_dev_npc_social").on("click", function (event) {
+    event.preventDefault();
+    const result = runNpcSocialEvent({ force: true });
+    if (!result) {
+      showToast("NPC↔NPC", "Нет подходящей пары. Создайте ещё NPC с пересекающимися интересами.");
+      return;
+    }
+    const [firstId, secondId] = result.participants || [];
+    const first = getProfileById(firstId);
+    const second = getProfileById(secondId);
+    showToast("NPC↔NPC", `${first?.name || firstId} ↔ ${second?.name || secondId}: ${result.type}`);
   });
 
   $("#vibe_dev_reveal").on("click", function (event) {
@@ -1915,4 +3610,5 @@ jQuery(async () => {
 
   updateWidget();
   updateUnreadUI();
+  window.setInterval(() => { void tickNpcSimulation(); }, 90_000);
 });

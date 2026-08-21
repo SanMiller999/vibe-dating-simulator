@@ -522,6 +522,12 @@ Messages should not be duplicated into the Notifications feed.
 
 # 18. Notification Semantics
 
+Actor notifications are routing events, not separate conversations. Every notification that names an actor resolves to that actor's single persistent chat.
+
+- `photo_like` / `match` without an incoming message: open an empty chat and wait for the player to send the first message.
+- event + incoming message: open the same chat with the incoming message already present.
+- message notifications and external activity must never create duplicate conversations for the same actor.
+
 ## Chats tab
 
 Shows unread conversations.
@@ -734,38 +740,36 @@ Future implementation should support event probability and character behavior.
 
 # 26. Current Product State
 
-Already implemented/prototyped:
+Currently implemented:
 
 - mobile-focused Vibe overlay;
 - close button;
-- floating widget;
-- widget movement;
-- widget size setting;
-- widget enable/disable;
-- widget search/reset;
-- widget normal/numbered assets;
-- Chats tab;
-- Notifications tab;
-- Dating tab;
-- Profile placeholder;
-- unread counters;
-- activity notification foundation;
-- collapsible Widget settings;
-- collapsible Memory settings.
+- floating widget with movement, size, enable/disable and search/reset;
+- normal/numbered widget assets;
+- Chats, Notifications, Dating and Profile tabs;
+- persistent player profile editor with one uploaded photo;
+- unread counters and separate chat/activity unread state;
+- extensible activity notification model;
+- persistent one-person conversations;
+- static and dynamic NPC profiles;
+- public profile + private/true persona scaffolding;
+- revelation/discovery persistence;
+- bounded long-term memory;
+- relationship memory and relationship stages;
+- NPC archetypes, behaviour traits, role state and autonomous events;
+- event-driven NPC↔NPC relationships with bounded history and cooldown;
+- Context Builder and weighted local action selection;
+- SillyTavern `getContext().generateRaw()` generation;
+- date simulation with temporary host-chat prompt injection.
 
-Architecturally planned but not fully implemented:
+Still limited / future work:
 
-- full player profile editor;
-- photo upload;
-- vision analysis;
-- public-vs-true profile model;
-- Profile Binding;
-- Discovery Memory;
-- Relationship Memory Bridge;
-- full Memory Core;
-- Context Builder;
-- World Awareness;
-- AI-driven autonomous NPC simulation.
+- real vision analysis of profile photos;
+- semantic/embedding-based memory;
+- full Relationship Memory Bridge between Vibe and separate roleplay state;
+- richer World Awareness and time/location simulation;
+- a true background simulation clock independent of UI activity;
+- production-grade knowledge isolation and deeper context retrieval.
 
 ---
 
@@ -810,3 +814,26 @@ Do not break these without explicit user approval:
 # Expectation / Discrepancy / Revelation
 
 Public profiles can differ from True Persona. The simulation tracks expectations, discrepancies, discovery and emotional reactions. Not every mismatch is revealed, and reactions depend on severity, intent, trust, attraction and discovery context.
+
+
+### Role State
+
+Каждый NPC имеет persistent role state поверх archetype template: `roleMood`, `positiveStreak`, `negativeStreak`, `jealousy`, `distanceScore`, `lastAction` и `lastEventAt`. Archetype задаёт базовую стратегию, а role state описывает текущую динамику конкретного экземпляра. LLM получает оба слоя через Role Directive.
+
+
+# 19. Notification Routing Clarification
+
+The Dating tab is intentionally profile-blind: the player swipes by like/dislike without opening the NPC public profile. Public profile inspection becomes available through Notifications by clicking the actor name. Clicking the notification body enters the actor's one persistent chat. The notification close control removes only the activity record.
+
+
+### Identity Layers
+
+For NPCs, Vibe distinguishes: `publicProfile`, `truePersona`, and `dateObservations`. The public layer may be inaccurate. The true layer is not automatically revealed. Real-life observations can reveal discrepancies and update memory/relationship state.
+
+### Reactions
+
+NPC emotional reactions are stateful outputs influenced by role strategy, emotionality, trust, attraction, sentiment and the immediate situation.
+
+
+### Host-chat date integration
+The date simulation is a state/context layer over the main SillyTavern conversation. Vibe injects the active NPC identity, role strategy, relationship memory, recent observations and revelation constraints into the host prompt. It must not fabricate a second roleplay transcript when the real date is happening in SillyTavern.

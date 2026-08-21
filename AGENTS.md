@@ -204,9 +204,11 @@ If an NPC matches the player:
 
 - create a notification/activity item;
 - show the NPC name;
-- make the match notification clickable;
+- make the activity notification clickable;
 - clicking it marks that activity as read;
-- clicking it navigates to the corresponding chat.
+- clicking it navigates to the one persistent chat for that NPC.
+
+The same actor-routing rule applies to other actor notifications such as `photo_like` and `profile_like`. If the activity has no incoming message, opening it shows an empty chat and the first message belongs to the player. If the activity also generated an incoming message, opening it shows that existing message in the same persistent chat.
 
 If there is no matching chat yet, create/open the one persistent chat for that NPC.
 
@@ -835,3 +837,30 @@ Vibe should feel:
 - internally consistent.
 
 The AI should behave like a participant in the simulation, not like a narrator who knows everything.
+
+
+## Notification chat-entry rule
+
+- Every actor notification must resolve to the actor's persistent chat.
+- `expectsPlayerReply: true` means the notification may open an empty chat where the player sends the first message.
+- If the notification carries an incoming message, that message belongs to the same persistent chat; opening the notification must never create a second conversation.
+- Role state is persistent and may influence event choice, mood and autonomous behavior.
+
+
+## v1.19 notification routing clarification
+
+- Dating feed: no public-profile navigation. Like/dislike only.
+- Notifications: clicking the notification body opens the actor's persistent chat.
+- Clicking the actor name opens the actor's public profile.
+- Clicking `×` deletes only the notification.
+- Match/photo-like without an incoming message: empty chat, player first.
+- Match/photo-like with an incoming message: same chat, existing NPC message.
+
+
+## Date Simulation Rules
+
+Do not assume that a public profile is a factual description of real-life behavior. NPCs may exaggerate, omit or strategically present themselves. Discovery should happen through conversation or date observations, not by leaking hidden state. Dates update relationship memory and can produce emotional reactions.
+
+
+- Date mode must integrate with the host SillyTavern chat via prompt injection rather than duplicating the roleplay conversation in the Vibe UI.
+- The extension must reuse the current SillyTavern generation backend/connection profile and must not require or store a second API key.
