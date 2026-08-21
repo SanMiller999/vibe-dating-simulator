@@ -4,6 +4,7 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
+const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active-1.png`;
 const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
 const vibeChatsIconPath = `${extensionFolderPath}/assets/vibe-chats-icon.png`;
 const notificationsIconPath = `${extensionFolderPath}/assets/vibe-notifications-icon.png`;
@@ -113,7 +114,7 @@ function loadChatState() {
     : {};
   state.activityNotifications = Array.isArray(saved.activityNotifications)
     ? saved.activityNotifications
-    : {};
+    : [];
 }
 
 function ensureSettings() {
@@ -126,12 +127,12 @@ function ensureSettings() {
     },
   };
 
+  const settings = extension_settings[extensionName];
+
   settings.playerProfile = {
     ...DEFAULT_SETTINGS.playerProfile,
     ...(settings.playerProfile || {}),
   };
-
-  const settings = extension_settings[extensionName];
   settings.widgetSize = clamp(Number(settings.widgetSize) || DEFAULT_SETTINGS.widgetSize, 24, 160);
 
   if (settings.widgetX !== null && !Number.isFinite(Number(settings.widgetX))) {
