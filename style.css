@@ -1019,3 +1019,24 @@
   color: #111111 !important;
   background: #f7f7f8 !important;
 }
+
+.vibe-open-profile{
+  margin-top:10px;
+  border:1px solid #dedee5;
+  border-radius:999px;
+  padding:7px 12px;
+  background:#fff;
+  color:#222!important;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.vibe-open-profile:hover,
+.vibe-open-profile:focus-visible{
+  background:#f7f7f8;
+  border-color:#cfcfd7;
+}
+
+.vibe-activity-actor{border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;font-weight:800;cursor:pointer}
+.vibe-activity-actor:hover,.vibe-activity-actor:focus-visible{text-decoration:underline}
