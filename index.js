@@ -311,6 +311,12 @@ function createWidget() {
 
 
 
+function getWidgetIconPathForCount(count) {
+  if (!count) return widgetIconPath;
+  const safe = Math.max(1, Math.min(20, Number(count) || 1));
+  return `${extensionFolderPath}/assets/vibe-widget-active-${safe}.png`;
+}
+
 function getUnreadInteractionCount(type = null) {
   return Object.values(state.unreadInteractions || {}).filter(item => {
     if (!item || item.read) return false;
@@ -850,6 +856,7 @@ jQuery(async () => {
 
   const settingsHtml = await $.get(`${extensionFolderPath}/example.html`);
   $("#extensions_settings").append(settingsHtml);
+  updateSettingsUI();
 
   bindMemorySettings();
 
@@ -911,7 +918,6 @@ jQuery(async () => {
   $(window).on("resize", () => {
     if ($("#vibe-floating-widget").length) {
       applyWidgetPosition();
-      positionWidgetBadge();
       positionWidgetBadge();
       saveSettingsDebounced();
     }

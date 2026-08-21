@@ -26,31 +26,21 @@
                  alt="Иконка Vibe">
             <div>
               <div class="vibe-settings-caption">Плавающий виджет</div>
-              <div class="vibe-settings-hint">
-                Короткий тап — открыть Vibe. Нажатие с удержанием — переместить.
-              </div>
+              <div class="vibe-settings-hint">Короткий тап — открыть Vibe. Нажатие с удержанием — переместить.</div>
             </div>
           </div>
 
           <div class="vibe-slider-row">
             <label for="vibe_widget_size">Размер:</label>
-            <input id="vibe_widget_size"
-                   type="range"
-                   min="24"
-                   max="160"
-                   step="1"
-                   value="46" />
+            <input id="vibe_widget_size" type="range" min="24" max="160" step="1" value="46" />
             <output id="vibe_widget_size_value">46px</output>
           </div>
 
           <div class="vibe-settings-buttons">
-            <input id="vibe_find_widget_button"
-                   class="menu_button"
-                   type="button"
-                   value="Поиск" />
+            <input id="vibe_find_widget_button" class="menu_button" type="button" value="Поиск" />
           </div>
         </div>
-            </div>
+      </div>
 
       <div class="vibe-settings-section vibe-memory-section">
         <button id="vibe_memory_settings_toggle"
@@ -67,41 +57,24 @@
               <input id="vibe_memory_auto" type="checkbox" checked />
               <span>Автоматическая память</span>
             </label>
-            <div class="vibe-setting-help">
-              Vibe сам решает, когда сжимать длинные переписки и сохранять важные факты.
-            </div>
+            <div class="vibe-setting-help">Vibe сам решает, когда сжимать длинные переписки и сохранять важные факты.</div>
           </div>
 
           <div class="vibe-slider-row">
             <label for="vibe_context_messages">Контекст:</label>
-            <input id="vibe_context_messages"
-                   type="range"
-                   min="10"
-                   max="100"
-                   step="5"
-                   value="30" />
+            <input id="vibe_context_messages" type="range" min="10" max="100" step="5" value="30" />
             <output id="vibe_context_messages_value">30</output>
           </div>
 
           <div class="vibe-slider-row">
             <label for="vibe_chat_memory">Память чата:</label>
-            <input id="vibe_chat_memory"
-                   type="range"
-                   min="5"
-                   max="100"
-                   step="5"
-                   value="30" />
+            <input id="vibe_chat_memory" type="range" min="5" max="100" step="5" value="30" />
             <output id="vibe_chat_memory_value">30</output>
           </div>
 
           <div class="vibe-slider-row">
             <label for="vibe_response_tokens">Ответ AI:</label>
-            <input id="vibe_response_tokens"
-                   type="range"
-                   min="128"
-                   max="4096"
-                   step="128"
-                   value="1024" />
+            <input id="vibe_response_tokens" type="range" min="128" max="4096" step="128" value="1024" />
             <output id="vibe_response_tokens_value">1024</output>
           </div>
 
@@ -109,33 +82,27 @@
             <input id="vibe_send_player_profile" type="checkbox" checked />
             <span>Учитывать анкету игрока</span>
           </label>
-
           <label class="checkbox_label">
             <input id="vibe_send_visual_profile" type="checkbox" checked />
             <span>Учитывать визуальный профиль</span>
           </label>
-
           <label class="checkbox_label">
             <input id="vibe_send_relationship_memory" type="checkbox" checked />
             <span>Учитывать память отношений</span>
           </label>
-
           <label class="checkbox_label">
             <input id="vibe_send_world_memory" type="checkbox" checked />
             <span>Учитывать память мира</span>
           </label>
 
           <div class="vibe-setting-help vibe-memory-note">
-            Эти настройки управляют объёмом и составом контекста для AI. Они не меняют сам пользовательский интерфейс Vibe.
+            Эти настройки управляют объёмом и составом контекста для AI. Они не меняют пользовательский интерфейс Vibe.
           </div>
         </div>
       </div>
 
       <div style="margin-top:12px;">
-        <input id="vibe_open_button"
-               class="menu_button"
-               type="button"
-               value="Открыть Vibe" />
+        <input id="vibe_open_button" class="menu_button" type="button" value="Открыть Vibe" />
       </div>
     </div>
   </div>

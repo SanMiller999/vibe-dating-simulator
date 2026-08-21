@@ -307,33 +307,32 @@
   align-items: stretch;
   background: #fff;
   border-top: 1px solid #e8e8eb;
-  padding: 7px 6px calc(9px + env(safe-area-inset-bottom));
-  min-height: 118px;
-  gap: 2px;
+  padding: 6px 5px calc(7px + env(safe-area-inset-bottom));
+  min-height: 70px;
+  gap: 1px;
 }
 
 .vibe-nav-button {
   position: relative;
   min-width: 0;
-  min-height: 104px;
+  min-height: 64px;
   color: #777;
   border: 0;
   background: transparent;
-  font-size: 18px;
-  padding: 2px 0 4px;
+  padding: 2px 0 3px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  border-radius: 16px;
+  gap: 2px;
+  border-radius: 12px;
 }
 
 .vibe-nav-button span {
   display: block;
-  font-size: 11px;
+  font-size: 9px;
   line-height: 1.05;
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
 }
 
@@ -762,11 +761,11 @@
 /* Large unified navigation icons: never smaller than 80 px */
 .vibe-nav-image-icon {
   display: block;
-  width: 84px;
-  height: 84px;
+  width: 38px;
+  height: 38px;
   margin: 0 auto;
   object-fit: contain;
-  flex: 0 0 84px;
+  flex: 0 0 38px;
 }
 
 /* Shared badge visual language for app + floating widget */
@@ -824,35 +823,21 @@
 /* Slightly tighter spacing on narrow phones while keeping icons >=80px. */
 @media (max-width: 380px) {
   .vibe-nav {
-    min-height: 112px;
-    padding-left: 3px;
-    padding-right: 3px;
+    min-height: 68px;
   }
-
   .vibe-nav-button {
-    min-height: 100px;
+    min-height: 62px;
   }
-
   .vibe-nav-image-icon {
-    width: 80px;
-    height: 80px;
-    flex-basis: 80px;
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
   }
-
   .vibe-nav-button span {
-    font-size: 10px;
-  }
-
-  .vibe-count-badge {
-    min-width: 15px;
-    height: 15px;
-    padding: 0 3px;
-    font-size: 7px;
+    font-size: 9px;
   }
 }
 
-.vibe-widget-badge {
-  display: none !important;
-}
+.vibe-widget-badge { display: none !important; }
 
 .vibe-nav-button[data-tab="feed"], .vibe-nav-button[data-tab="chats"], .vibe-nav-button[data-tab="notifications"] { position: relative; }
