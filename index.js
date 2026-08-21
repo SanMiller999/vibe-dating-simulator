@@ -631,6 +631,12 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
     name: firstName,
     age: 21 + Math.floor(rng() * 24),
     city: ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск"][Math.floor(rng() * 5)],
+    gender: rng() > 0.5 ? "Женщина" : "Мужчина",
+    lookingFor: ["Не важно"],
+    datingGoals: [...archetype.goals],
+    occupation: ["Дизайнер", "Разработчик", "Маркетолог", "Фотограф", "Врач", "Предприниматель", "Преподаватель", "Менеджер"][Math.floor(rng() * 8)],
+    education: ["Высшее образование", "Магистратура", "Среднее специальное", "Учусь сейчас"][Math.floor(rng() * 4)],
+    photos: [],
     status: rng() > 0.5 ? "В сети" : "Была недавно",
     about: "",
     interests: [],
@@ -654,6 +660,21 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
   profile.interests = shuffled.slice(0, 3);
 
   profile.about = `${archetype.label}. ${archetype.style[rng() * archetype.style.length | 0]}.`;
+
+  profile.publicProfile = {
+    name: profile.name,
+    age: profile.age,
+    city: profile.city,
+    gender: profile.gender || "",
+    lookingFor: Array.isArray(profile.lookingFor) ? [...profile.lookingFor] : ["Не важно"],
+    datingGoals: Array.isArray(profile.datingGoals) ? [...profile.datingGoals] : [...archetype.goals],
+    interests: [...profile.interests],
+    occupation: profile.occupation || "",
+    education: profile.education || "",
+    about: profile.about,
+    photos: Array.isArray(profile.photos) ? [...profile.photos] : [],
+  };
+
   state.dynamicProfiles[id] = profile;
   saveChatState();
   return profile;
@@ -1156,27 +1177,36 @@ function showChats() {
             const last = chat.messages[chat.messages.length - 1];
 
             return `
-              <button class="vibe-chat-row" data-profile="${escapeHtml(id)}">
-                <div class="vibe-chat-avatar">${escapeHtml(p.name[0])}</div>
-
-                <div class="vibe-chat-row-body">
-                  <div>
-                    <strong>${escapeHtml(p.name)}</strong>
-                    <span>${escapeHtml(p.status)}</span>
+              <div class="vibe-chat-row vibe-chat-row-container" data-profile="${escapeHtml(id)}">
+                <button type="button" class="vibe-chat-profile-link" data-profile="${escapeHtml(id)}" aria-label="Открыть профиль ${escapeHtml(p.name)}">
+                  <div class="vibe-chat-avatar">${escapeHtml(p.name[0])}</div>
+                </button>
+                <button type="button" class="vibe-chat-row-main" data-profile="${escapeHtml(id)}">
+                  <div class="vibe-chat-row-body">
+                    <div>
+                      <strong>${escapeHtml(p.name)}</strong>
+                      <span>${escapeHtml(p.status)}</span>
+                    </div>
+                    <div>${escapeHtml(last?.text || "")}</div>
                   </div>
-                  <div>${escapeHtml(last?.text || "")}</div>
-                </div>
-              </button>
+                </button>
+              </div>
             `;
           }).join("")
         : `<div class="vibe-empty"><img class="vibe-empty-chat-icon" src="${vibeChatsIconPath}" alt=""><div>Пока нет совпадений.<br>Поставьте кому-нибудь лайк.</div></div>`
     }
   `);
 
-  $(".vibe-chat-row").on("click", function () {
-    const id = $(this).data("profile");
-    const p = getProfileById(id);
-    showChat(p);
+  $(".vibe-chat-profile-link").on("click", function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    const p=getProfileById($(this).data("profile"));
+    if(p) renderNpcProfileView(p);
+  });
+
+  $(".vibe-chat-row-main").on("click", function(){
+    const p=getProfileById($(this).data("profile"));
+    if(p) showChat(p);
   });
 }
 
@@ -1197,17 +1227,39 @@ function showNotifications() {
             const clickable = Boolean(item.sourceId || item.actorId || item.actorProfile || item.archetypeId);
 
             return `
-              <button class="vibe-activity-row ${clickable ? "vibe-activity-clickable" : ""}"
-                      data-notification-id="${escapeHtml(item.id)}">
-                <div class="vibe-notification-icon">
-                  <img src="${notificationsIconPath}" alt="">
-                </div>
-                <div class="vibe-activity-body">
-                  <strong>${escapeHtml(name)} — ${escapeHtml(title)}</strong>
-                  <div>${escapeHtml(text)}</div>
-                  ${item.read ? "" : `<span class="vibe-activity-unread">Новое</span>`}
-                </div>
-              </button>
+              <div class="vibe-activity-row ${clickable ? "vibe-activity-clickable" : ""}"
+                   data-notification-id="${escapeHtml(item.id)}">
+                <button type="button"
+                        class="vibe-activity-main"
+                        data-notification-id="${escapeHtml(item.id)}"
+                        aria-label="Открыть чат с ${escapeHtml(name)}">
+                  <div class="vibe-notification-icon">
+                    <img src="${notificationsIconPath}" alt="">
+                  </div>
+
+                  <div class="vibe-activity-body">
+                    <strong>${escapeHtml(name)} — ${escapeHtml(title)}</strong>
+                    <div>${escapeHtml(text)}</div>
+                    ${item.read ? "" : `<span class="vibe-activity-unread">Новое</span>`}
+                  </div>
+                </button>
+
+                ${
+                  p
+                    ? `<button type="button"
+                              class="vibe-activity-profile"
+                              data-profile-id="${escapeHtml(p.id)}"
+                              aria-label="Открыть профиль ${escapeHtml(name)}"
+                              title="Профиль">👤</button>`
+                    : ""
+                }
+
+                <button type="button"
+                        class="vibe-activity-delete"
+                        data-notification-id="${escapeHtml(item.id)}"
+                        aria-label="Удалить уведомление"
+                        title="Удалить">×</button>
+              </div>
             `;
           }).join("")
         : `
@@ -1219,26 +1271,45 @@ function showNotifications() {
     }
   `);
 
-  $(".vibe-activity-row").on("click", function () {
-    const notificationId = $(this).data("notification-id");
-    const item = (state.activityNotifications || []).find(x => x.id === notificationId);
-    if (!item) return;
+  // Main notification area -> open chat, preserving the one-chat-per-person rule.
+  $(".vibe-activity-main").on("click", function(event) {
+    event.preventDefault();
+    const notificationId=$(this).data("notification-id");
+    const item=(state.activityNotifications||[]).find(x=>x.id===notificationId);
+    if(!item) return;
 
     markActivityRead(notificationId);
 
-    const profile = ensureProfileFromActivity(item);
-    if (!profile) {
-      showNotifications();
-      return;
-    }
+    const profile=ensureProfileFromActivity(item);
+    if(!profile){ showNotifications(); return; }
 
-    // Every actor-backed notification can lead to the single persistent chat.
-    // Whether the NPC already sent a message is represented by chat.messages.
     $(".vibe-nav-button").removeClass("vibe-nav-active");
     $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
-
     ensureChat(profile.id);
     showChat(profile);
+  });
+
+  // Profile button -> public dating profile. It does not create a new chat.
+  $(".vibe-activity-profile").on("click", function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const profile=getProfileById($(this).data("profile-id"));
+    if(!profile) return;
+
+    const notificationId=$(this).closest(".vibe-activity-row").data("notification-id");
+    markActivityRead(notificationId);
+    renderNpcProfileView(profile);
+  });
+
+  // X -> delete the notification only.
+  $(".vibe-activity-delete").on("click", function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const notificationId=$(this).data("notification-id");
+    removeActivityNotification(notificationId);
+    showNotifications();
   });
 }
 
@@ -1249,6 +1320,69 @@ function getPlayerProfile() {
   profile.interests = Array.isArray(profile.interests) ? profile.interests : [];
   profile.photos = Array.isArray(profile.photos) ? profile.photos : [];
   return profile;
+}
+
+function renderNpcProfileView(profile) {
+  const p=profile.publicProfile||profile;
+  const goals=Array.isArray(p.datingGoals)&&p.datingGoals.length?p.datingGoals:["Цели пока не указаны"];
+  const interests=Array.isArray(p.interests)&&p.interests.length?p.interests:["Интересы пока не указаны"];
+  const lookingFor=Array.isArray(p.lookingFor)&&p.lookingFor.length?p.lookingFor.join(" • "):"Не указано";
+  const photo=p.photos?.[0]||profile.photos?.[0]||"";
+
+  $("#vibe_content").html(`
+    <div class="vibe-profile-page vibe-npc-profile-page">
+      <div class="vibe-profile-cover"></div>
+      <div class="vibe-profile-hero">
+        <div class="vibe-profile-avatar-wrap">
+          ${photo?`<img class="vibe-profile-avatar" src="${escapeHtml(photo)}" alt="Фото профиля">`
+                  :`<div class="vibe-profile-avatar vibe-profile-avatar-placeholder">${escapeHtml((p.name||"?").slice(0,1))}</div>`}
+        </div>
+        <div class="vibe-profile-identity">
+          <div class="vibe-profile-name-row">
+            <h2>${escapeHtml(p.name||profile.name||"Пользователь")}</h2>
+            ${p.age?`<span class="vibe-profile-age">${escapeHtml(String(p.age))} лет</span>`:""}
+          </div>
+          <div class="vibe-profile-meta">
+            ${p.city?`<span>${escapeHtml(p.city)}</span>`:""}
+            ${p.gender?`<span>${escapeHtml(p.gender)}</span>`:""}
+          </div>
+          <div class="vibe-profile-looking">Ищу: ${escapeHtml(lookingFor)}</div>
+        </div>
+        <button id="vibe_npc_profile_chat" type="button" class="vibe-profile-edit-button">Написать</button>
+      </div>
+
+      <div class="vibe-profile-body">
+        <section class="vibe-profile-card">
+          <div class="vibe-profile-card-title">О себе</div>
+          <div class="vibe-profile-about">${escapeHtml(p.about||"Пользователь пока ничего не написал о себе.")}</div>
+        </section>
+
+        <section class="vibe-profile-card">
+          <div class="vibe-profile-card-title">Цели знакомств</div>
+          <div class="vibe-profile-chip-list">${goals.map(x=>`<span class="vibe-profile-pill">${escapeHtml(x)}</span>`).join("")}</div>
+        </section>
+
+        <section class="vibe-profile-card">
+          <div class="vibe-profile-card-title">Интересы</div>
+          <div class="vibe-profile-chip-list">${interests.map(x=>`<span class="vibe-profile-pill">${escapeHtml(x)}</span>`).join("")}</div>
+        </section>
+
+        <div class="vibe-profile-facts">
+          ${p.occupation?`<div class="vibe-profile-fact"><strong>Профессия</strong><span>${escapeHtml(p.occupation)}</span></div>`:""}
+          ${p.education?`<div class="vibe-profile-fact"><strong>Образование</strong><span>${escapeHtml(p.education)}</span></div>`:""}
+        </div>
+
+        
+      </div>
+    </div>
+  `);
+
+  $("#vibe_npc_profile_chat").on("click",function(){
+    $(".vibe-nav-button").removeClass("vibe-nav-active");
+    $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
+    ensureChat(profile.id);
+    showChat(profile);
+  });
 }
 
 function renderPlayerProfileView(profile) {
@@ -1271,7 +1405,7 @@ function renderPlayerProfileView(profile) {
         <div class="vibe-profile-identity">
           <div class="vibe-profile-name-row">
             <h2>${escapeHtml(profile.name || "Ваш профиль")}</h2>
-            ${profile.age ? `<span class="vibe-profile-age">${escapeHtml(String(profile.age))}</span>` : ""}
+            ${profile.age ? `<span class="vibe-profile-age">${escapeHtml(String(profile.age))} лет</span>` : ""}
           </div>
           <div class="vibe-profile-meta">
             ${profile.city ? `<span>${escapeHtml(profile.city)}</span>` : ""}

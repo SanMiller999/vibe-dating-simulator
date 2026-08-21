@@ -942,3 +942,80 @@
 .vibe-chip.selected{background:#f3d7e3;border-color:#d85a81;color:#7c2848}
 .vibe-profile-save{width:100%;margin-top:4px}
 .vibe-profile-age-input,.vibe-form-field input[type="number"]{color:#2f2f35!important;background:#fff!important;-webkit-text-fill-color:#2f2f35!important;color-scheme:light}
+
+.vibe-activity-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  position: relative;
+}
+
+.vibe-activity-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vibe-activity-delete {
+  flex: 0 0 28px;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #9a9aa2;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vibe-activity-delete:hover,
+.vibe-activity-delete:focus-visible {
+  background: rgba(0, 0, 0, .06);
+  color: #44444b;
+}
+
+.vibe-activity-profile{flex:0 0 30px;width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:#8a8a92;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.vibe-activity-profile:hover,.vibe-activity-profile:focus-visible{background:rgba(0,0,0,.06);color:#44444b}
+.vibe-chat-row-container{display:flex;align-items:center;gap:10px;padding:10px}
+.vibe-chat-profile-link{flex:0 0 auto;border:0;padding:0;background:transparent;cursor:pointer}
+.vibe-chat-row-main{flex:1;min-width:0;border:0;padding:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.vibe-chat-row-container .vibe-chat-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;background:#f2dbe5;color:#70495b}
+
+/* Profile readability fixes */
+.vibe-profile-name-row h2,
+.vibe-profile-name-row h2 a {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+}
+
+.vibe-profile-age {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-weight: 700;
+}
+
+.vibe-profile-edit-button {
+  color: #222222 !important;
+  -webkit-text-fill-color: #222222 !important;
+  background: #ffffff !important;
+  border-color: #d8d8df !important;
+}
+
+.vibe-profile-edit-button:hover,
+.vibe-profile-edit-button:focus-visible {
+  color: #111111 !important;
+  background: #f7f7f8 !important;
+}
