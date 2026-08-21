@@ -27,6 +27,19 @@ const DEFAULT_SETTINGS = {
   widgetX: null,
   widgetY: null,
   developerMode: false,
+  playerProfile: {
+    name: "",
+    age: "",
+    city: "",
+    gender: "",
+    lookingFor: [],
+    datingGoals: [],
+    interests: [],
+    occupation: "",
+    education: "",
+    about: "",
+    photos: [],
+  },
 };
 
 const DRAG_HOLD_MS = 340;
@@ -111,6 +124,11 @@ function ensureSettings() {
       ...DEFAULT_MEMORY_SETTINGS,
       ...((extension_settings[extensionName] || {}).memory || {}),
     },
+  };
+
+  settings.playerProfile = {
+    ...DEFAULT_SETTINGS.playerProfile,
+    ...(settings.playerProfile || {}),
   };
 
   const settings = extension_settings[extensionName];
@@ -982,20 +1000,148 @@ function showNotifications() {
   });
 }
 
-function showPlayerProfile() {
-  $("#vibe_content").html(`
-    <div class="vibe-section-title">Ваш профиль</div>
+function getPlayerProfile() {
+  return extension_settings[extensionName].playerProfile;
+}
 
-    <div class="vibe-my-profile">
-      <img class="vibe-my-profile-icon" src="${vibeProfileIconPath}" alt=""><div class="vibe-my-avatar">В</div>
-      <h2>Ваш профиль</h2>
-      <div class="vibe-city">Новая анкета</div>
-      <p>
-        На следующем этапе добавим редактирование имени, возраста,
-        города, интересов и описания.
-      </p>
+function showPlayerProfile() {
+  const profile = getPlayerProfile();
+
+  const goals = ["Общение","Дружба","Свидания","Отношения","Серьёзные отношения","Пока не определился"];
+  const lookingForOptions = ["Мужчины","Женщины","Мужчины и женщины","Не важно"];
+  const interestOptions = ["Музыка","Кино","Путешествия","Игры","Книги","Спорт","Собаки","Кошки","Кофе","Искусство","Еда","Прогулки"];
+
+  $("#vibe_content").html(`
+    <div class="vibe-section-title">Профиль</div>
+    <div class="vibe-profile-editor">
+      <div class="vibe-profile-photo-block">
+        <div id="vibe_profile_photo_preview" class="vibe-profile-main-photo">
+          ${profile.photos?.[0] ? `<img src="${escapeHtml(profile.photos[0])}" alt="Фото профиля">` : `<div class="vibe-profile-photo-placeholder">＋</div>`}
+        </div>
+        <input id="vibe_profile_photo_input" type="file" accept="image/*" hidden>
+        <button id="vibe_profile_photo_button" type="button" class="menu_button">
+          ${profile.photos?.[0] ? "Заменить фото" : "Добавить фото"}
+        </button>
+      </div>
+
+      <label class="vibe-form-field">
+        <span>Имя</span>
+        <input id="vibe_profile_name" type="text" value="${escapeHtml(profile.name || "")}" maxlength="60">
+      </label>
+
+      <div class="vibe-form-row">
+        <label class="vibe-form-field">
+          <span>Возраст</span>
+          <input id="vibe_profile_age" type="number" min="18" max="99" value="${escapeHtml(profile.age || "")}">
+        </label>
+        <label class="vibe-form-field">
+          <span>Город</span>
+          <input id="vibe_profile_city" type="text" value="${escapeHtml(profile.city || "")}" maxlength="80">
+        </label>
+      </div>
+
+      <label class="vibe-form-field">
+        <span>Пол</span>
+        <select id="vibe_profile_gender">
+          <option value="">Не указан</option>
+          <option value="Мужчина" ${profile.gender === "Мужчина" ? "selected" : ""}>Мужчина</option>
+          <option value="Женщина" ${profile.gender === "Женщина" ? "selected" : ""}>Женщина</option>
+          <option value="Другое" ${profile.gender === "Другое" ? "selected" : ""}>Другое</option>
+        </select>
+      </label>
+
+      <div class="vibe-form-section">
+        <div class="vibe-form-section-title">Кого ищу</div>
+        <div class="vibe-chip-group" id="vibe_profile_looking_for">
+          ${lookingForOptions.map(o => `<button type="button" class="vibe-chip ${profile.lookingFor.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div class="vibe-form-section">
+        <div class="vibe-form-section-title">Цели знакомств</div>
+        <div class="vibe-chip-group" id="vibe_profile_goals">
+          ${goals.map(o => `<button type="button" class="vibe-chip ${profile.datingGoals.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div class="vibe-form-section">
+        <div class="vibe-form-section-title">Интересы</div>
+        <div class="vibe-chip-group" id="vibe_profile_interests">
+          ${interestOptions.map(o => `<button type="button" class="vibe-chip ${profile.interests.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+        </div>
+      </div>
+
+      <label class="vibe-form-field">
+        <span>Профессия</span>
+        <input id="vibe_profile_occupation" type="text" value="${escapeHtml(profile.occupation || "")}" maxlength="100">
+      </label>
+
+      <label class="vibe-form-field">
+        <span>Образование</span>
+        <input id="vibe_profile_education" type="text" value="${escapeHtml(profile.education || "")}" maxlength="120">
+      </label>
+
+      <label class="vibe-form-field">
+        <span>О себе</span>
+        <textarea id="vibe_profile_about" rows="5" maxlength="1000">${escapeHtml(profile.about || "")}</textarea>
+      </label>
+
+      <button id="vibe_profile_save" type="button" class="menu_button vibe-profile-save">Сохранить профиль</button>
     </div>
   `);
+
+  function toggleMulti(selector, key, value) {
+    profile[key] = profile[key] || [];
+    const idx = profile[key].indexOf(value);
+    if (idx >= 0) profile[key].splice(idx,1);
+    else profile[key].push(value);
+    $(selector).filter(`[data-value="${CSS.escape(value)}"]`).toggleClass("selected");
+  }
+
+  $("#vibe_profile_looking_for .vibe-chip").on("click", function() {
+    const value=$(this).data("value");
+    if (value==="Не важно") {
+      profile.lookingFor=["Не важно"];
+      $("#vibe_profile_looking_for .vibe-chip").removeClass("selected");
+      $(this).addClass("selected");
+      return;
+    }
+    profile.lookingFor=(profile.lookingFor||[]).filter(v=>v!=="Не важно");
+    toggleMulti("#vibe_profile_looking_for .vibe-chip","lookingFor",value);
+  });
+  $("#vibe_profile_goals .vibe-chip").on("click", function() {
+    toggleMulti("#vibe_profile_goals .vibe-chip","datingGoals",$(this).data("value"));
+  });
+  $("#vibe_profile_interests .vibe-chip").on("click", function() {
+    toggleMulti("#vibe_profile_interests .vibe-chip","interests",$(this).data("value"));
+  });
+
+  $("#vibe_profile_photo_button").on("click",()=>$("#vibe_profile_photo_input").trigger("click"));
+  $("#vibe_profile_photo_input").on("change",function(){
+    const file=this.files?.[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      profile.photos=[reader.result];
+      $("#vibe_profile_photo_preview").html(`<img src="${escapeHtml(reader.result)}" alt="Фото профиля">`);
+      $("#vibe_profile_photo_button").text("Заменить фото");
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $("#vibe_profile_save").on("click",function(){
+    profile.name=$("#vibe_profile_name").val().trim();
+    profile.age=$("#vibe_profile_age").val();
+    profile.city=$("#vibe_profile_city").val().trim();
+    profile.gender=$("#vibe_profile_gender").val();
+    profile.occupation=$("#vibe_profile_occupation").val().trim();
+    profile.education=$("#vibe_profile_education").val().trim();
+    profile.about=$("#vibe_profile_about").val().trim();
+
+    saveSettingsDebounced();
+    showToast("Профиль","Профиль сохранён");
+    showPlayerProfile();
+  });
 }
 
 function bindAppEvents() {

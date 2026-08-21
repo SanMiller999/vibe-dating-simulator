@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.5.2
+# Vibe Dating Simulator — v1.6.0
 
 Vibe is a third-party UI extension for SillyTavern that simulates a dating application. It is a game/prototype, not a real dating service.
 
@@ -60,3 +60,8 @@ Do not replace approved artwork without explicit approval.
 6. Run `node --check index.js` before publishing a ZIP release.
 
 Keep source files in the repository and produce ZIP files only as release artifacts.
+
+
+## Player profile editor — v1.6.0
+
+Добавлен первый реальный слой профиля игрока: фото, имя, возраст, город, пол, кого ищу, цели знакомств, интересы, профессия, образование и «О себе». Данные сохраняются в настройках расширения. Полный AI-анализ фото, несколько фото, public-vs-true persona и Profile Binding остаются следующими этапами.

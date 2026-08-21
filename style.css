@@ -883,3 +883,19 @@
   font-weight: 700;
   color: #d85a81;
 }
+
+.vibe-profile-editor{display:flex;flex-direction:column;gap:14px;padding-bottom:24px}
+.vibe-profile-photo-block{display:flex;flex-direction:column;align-items:center;gap:8px}
+.vibe-profile-main-photo{width:min(72vw,260px);aspect-ratio:1/1;border-radius:20px;overflow:hidden;background:#f1f1f4;display:flex;align-items:center;justify-content:center}
+.vibe-profile-main-photo img{width:100%;height:100%;object-fit:cover}
+.vibe-profile-photo-placeholder{font-size:54px;color:#a0a0a8;font-weight:300}
+.vibe-form-field{display:flex;flex-direction:column;gap:6px}
+.vibe-form-field>span,.vibe-form-section-title{font-weight:700;font-size:13px}
+.vibe-form-field input,.vibe-form-field select,.vibe-form-field textarea{width:100%;box-sizing:border-box;border:1px solid #dedee5;border-radius:12px;background:#fff;padding:10px 11px;font:inherit;color:inherit}
+.vibe-form-field textarea{resize:vertical;min-height:110px}
+.vibe-form-row{display:grid;grid-template-columns:.9fr 1.1fr;gap:10px}
+.vibe-form-section{display:flex;flex-direction:column;gap:8px}
+.vibe-chip-group{display:flex;flex-wrap:wrap;gap:7px}
+.vibe-chip{border:1px solid #dedee5;border-radius:999px;background:#fff;color:#5f5f68;padding:7px 10px;font:inherit;font-size:12px}
+.vibe-chip.selected{background:#f3d7e3;border-color:#d85a81;color:#7c2848}
+.vibe-profile-save{width:100%;margin-top:4px}
