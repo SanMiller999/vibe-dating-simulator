@@ -4,6 +4,7 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
+const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active.png`;
 const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
 const vibeChatsIconPath = `${extensionFolderPath}/assets/vibe-chats-icon.png`;
 const notificationsIconPath = `${extensionFolderPath}/assets/vibe-notifications-icon.png`;
@@ -71,6 +72,7 @@ const state = {
   currentIndex: 0,
   liked: [],
   chats: {},
+  unreadInteractions: {},
 };
 
 function ensureSettings() {
@@ -241,6 +243,7 @@ function applyWidgetPosition() {
 
   settings.widgetX = x;
   settings.widgetY = y;
+  positionWidgetBadge();
 }
 
 
@@ -306,98 +309,149 @@ function createWidget() {
 
 
 
-function getTotalUnreadCount() {
-  return Object.values(state.chats).reduce((total, chat) => {
-    return total + Math.max(0, Number(chat.unread) || 0);
-  }, 0);
+
+
+function getUnreadInteractionCount(type = null) {
+  return Object.values(state.unreadInteractions || {}).filter(item => {
+    if (!item || item.read) return false;
+    return !type || item.type === type;
+  }).length;
+}
+
+function getUnreadChatsCount() {
+  return getUnreadInteractionCount("chat_message");
+}
+
+function getUnreadDatingCount() {
+  return Object.values(state.unreadInteractions || {}).filter(item => {
+    return item && !item.read && ["match", "like"].includes(item.type);
+  }).length;
+}
+
+function createInteraction(type, sourceId, meta = {}) {
+  const id = `interaction_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  state.unreadInteractions[id] = {
+    id,
+    type,
+    sourceId,
+    createdAt: Date.now(),
+    read: false,
+    ...meta,
+  };
+  updateUnreadUI();
+  return id;
+}
+
+function markChatInteractionsRead(chatId) {
+  Object.values(state.unreadInteractions || {}).forEach(item => {
+    if (!item.read && item.type === "chat_message" && item.sourceId === chatId) {
+      item.read = true;
+    }
+  });
+  updateUnreadUI();
+}
+
+function setNavBadge(button, count, label) {
+  if (!button.length) return;
+
+  let badge = button.find(".vibe-nav-badge");
+  if (!badge.length) {
+    button.append(`<span class="vibe-count-badge vibe-nav-badge" aria-label="${label}"></span>`);
+    badge = button.find(".vibe-nav-badge");
+  }
+
+  if (!count) {
+    badge.text("0").attr("aria-hidden", "true").hide();
+  } else {
+    badge.text(count > 99 ? "99+" : String(count))
+      .attr("aria-hidden", "false")
+      .show();
+  }
 }
 
 function updateUnreadUI() {
-  const count = getTotalUnreadCount();
+  const total = getUnreadInteractionCount();
+  const chats = getUnreadChatsCount();
+  const dating = getUnreadDatingCount();
 
-  // Floating widget badge + persistent glow while unread messages exist.
+  // Floating widget shows the total number of unread interactions.
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
     const badge = widget.find(".vibe-widget-badge");
+    const image = widget.find(".vibe-floating-widget-image");
 
-    if (!count) {
+    if (!total) {
       badge.text("0").attr("aria-hidden", "true").hide();
       widget.removeClass("vibe-widget-notify");
+      image.attr("src", widgetIconPath);
     } else {
-      badge.text(count > 99 ? "99+" : String(count))
+      badge.text(total > 99 ? "99+" : String(total))
         .attr("aria-hidden", "false")
         .show();
-
-      // Keep the notification state active until the unread chat(s) are opened.
       widget.addClass("vibe-widget-notify");
+      image.attr("src", widgetActiveIconPath);
     }
   }
 
-  // Bottom navigation badge uses exactly the same total unread count.
-  const notificationButton = $('.vibe-nav-button[data-tab="notifications"]');
-  if (notificationButton.length) {
-    let badge = notificationButton.find(".vibe-nav-badge");
+  // Inside the app each relevant section gets its own small, real counter.
+  setNavBadge(
+    $('.vibe-nav-button[data-tab="notifications"]'),
+    total,
+    "Непрочитанные уведомления"
+  );
 
-    if (!badge.length) {
-      notificationButton.append('<span class="vibe-count-badge vibe-nav-badge" aria-label="Непрочитанные сообщения"></span>');
-      badge = notificationButton.find(".vibe-nav-badge");
-    }
+  setNavBadge(
+    $('.vibe-nav-button[data-tab="chats"]'),
+    chats,
+    "Непрочитанные чаты"
+  );
 
-    if (!count) {
-      badge.text("0").attr("aria-hidden", "true").hide();
-    } else {
-      badge.text(count > 99 ? "99+" : String(count))
-        .attr("aria-hidden", "false")
-        .show();
-    }
-  }
+  setNavBadge(
+    $('.vibe-nav-button[data-tab="feed"]'),
+    dating,
+    "Новые знакомства"
+  );
 
   positionWidgetBadge();
 }
 
-function ensureChat(id) {
-  if (!state.chats[id]) {
-    state.chats[id] = {
-      messages: [],
-      unread: 0,
-    };
-  }
 
-  // Backward compatibility with any old in-memory shape.
-  if (Array.isArray(state.chats[id])) {
-    state.chats[id] = {
-      messages: state.chats[id],
-      unread: 0,
-    };
-  }
-
-  return state.chats[id];
+function addDatingInteraction(type, sourceId, meta = {}) {
+  return createInteraction(type, sourceId, meta);
 }
 
-function markChatRead(id) {
-  const chat = ensureChat(id);
-  chat.unread = 0;
-  updateUnreadUI();
+function ensureChat(id) {
+  if (!state.chats[id]) {
+    state.chats[id] = { messages: [] };
+  }
+  if (Array.isArray(state.chats[id])) {
+    state.chats[id] = { messages: state.chats[id] };
+  }
+  return state.chats[id];
 }
 
 function addIncomingMessage(id, text) {
   const chat = ensureChat(id);
+
   chat.messages.push({
     id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     from: "them",
     text,
     timestamp: Date.now()
   });
-  chat.unread += 1;
-  updateUnreadUI();
 
-  const widget = $("#vibe-floating-widget");
-  if (widget.length) {
-    // A brief pulse on arrival, then the glow remains until the chat is read.
-    widget.removeClass("vibe-widget-pulse");
-    void widget[0].offsetWidth;
-    widget.addClass("vibe-widget-pulse");
-    setTimeout(() => widget.removeClass("vibe-widget-pulse"), 1100);
+  const hasUnreadForChat = Object.values(state.unreadInteractions || {}).some(
+    item => !item.read && item.type === "chat_message" && item.sourceId === id
+  );
+
+  // Multiple messages in the same unread chat remain ONE interaction.
+  if (!hasUnreadForChat) {
+    createInteraction("chat_message", id, {
+      title: "Новое сообщение",
+      description: `Новое сообщение от ${profiles.find(p => p.id === id)?.name || "пользователя"}`
+    });
+  } else {
+    updateUnreadUI();
   }
 }
 
@@ -619,10 +673,17 @@ function showFeed() {
   $("#vibe_like").on("click", () => {
     state.liked.push(profile.id);
     const chat = ensureChat(profile.id);
-    chat.messages.push({ from: "them", text: profile.firstMessage, timestamp: Date.now() });
-    chat.unread += 1;
+    chat.messages.push({
+      from: "them",
+      text: profile.firstMessage,
+      timestamp: Date.now()
+    });
 
-    updateUnreadUI();
+    createInteraction("match", profile.id, {
+      title: "Новый match",
+      description: `Взаимная симпатия с ${profile.name}`
+    });
+
     showToast("💕 Match", `У вас совпадение с ${profile.name}!`);
 
     state.currentIndex++;
@@ -632,7 +693,7 @@ function showFeed() {
 
 function showChat(profile) {
   const chat = ensureChat(profile.id);
-  markChatRead(profile.id);
+  markChatInteractionsRead(profile.id);
   const messages = chat.messages;
 
   $("#vibe_content").html(`
@@ -725,7 +786,7 @@ function showChats() {
 
 function showNotifications() {
   const count = state.liked.length;
-  const unread = getTotalUnreadCount();
+  const unread = getUnreadInteractionCount();
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Уведомления</div>
@@ -855,6 +916,7 @@ jQuery(async () => {
   $(window).on("resize", () => {
     if ($("#vibe-floating-widget").length) {
       applyWidgetPosition();
+      positionWidgetBadge();
       positionWidgetBadge();
       saveSettingsDebounced();
     }
