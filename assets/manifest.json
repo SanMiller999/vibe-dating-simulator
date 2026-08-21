@@ -1,0 +1,14 @@
+{
+  "display_name": "Vibe Dating Simulator",
+  "loading_order": 50,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Vibe Project",
+  "version": "1.2.5",
+  "homePage": "https://github.com/SanMiller999/vibe-dating-simulator",
+  "hooks": {
+    "activate": "init"
+  }
+}
