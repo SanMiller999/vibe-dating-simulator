@@ -16,14 +16,7 @@ NPCs may be honest, flattering, incomplete or deceptive.
 
 Not every character lies. Not every discrepancy is revealed.
 
-Discovery can happen through:
-- messages
-- direct questions
-- photos
-- first meetings
-- Roleplay scenes
-- environmental observations
-- other NPCs
+Discovery in the current release can happen through message thresholds and direct personal questions. Photo/meeting/roleplay/environment/other-NPC discovery hooks remain future extension points.
 
 A discrepancy has severity and discoverability.
 

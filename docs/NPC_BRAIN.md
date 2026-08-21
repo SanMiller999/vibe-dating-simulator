@@ -15,7 +15,7 @@ Every AI-driven Vibe character should eventually have:
 9. Context Builder
 10. AI response generation
 
-The current prototype implements layers 1–6 structurally for generated NPCs and provides a deterministic local action selector.
+The current release implements public profile, a private persona layer, role/archetype strategies, individualized behavioural parameters, persistent relationship state, bounded long-term memory, relationship stages, contextual hints, a revelation layer, a bounded context builder, weighted local action selection, and event selection. Knowledge isolation is still lightweight and there is no vector/embedding store.
 
 ## Archetype
 
@@ -36,25 +36,26 @@ Examples:
 
 Two NPCs can share the same archetype and still have different trait values, names, ages, cities, interests, seeds and behavior.
 
-## Traits
+## Individual Behaviour Parameters
 
-Traits are normalized to 0..1 and include:
+Each NPC receives a persistent randomized behaviour profile including:
 
 - initiative
-- curiosity
-- patience
-- emotionality
-- spontaneity
-- honesty
-- attachment
-- flirt
-- boundarySensitivity
-- responseSpeed
 - consistency
+- flirt
+- warmth
+- spontaneity
+- jealousy
+- ghosting risk
+- disclosure tendency
+- boundary respect
+- emotionality
+
+These values modify the role strategy rather than replacing it.
 
 ## Context
 
-`buildNpcContext(profileId, situation)` creates a structured context for the future AI model.
+`buildNpcContext(profileId, situation)` creates the structured context currently passed to the host AI model.
 
 The model should receive only relevant information instead of the entire simulation database.
 
@@ -75,7 +76,7 @@ The model should receive only relevant information instead of the entire simulat
 
 This is a local decision layer. It does not generate natural language.
 
-The future AI layer should turn the selected action and context into actual text.
+The current AI layer turns the selected action and context into natural-language text through SillyTavern `generateRaw()`.
 
 ## Important rule
 
@@ -113,3 +114,17 @@ The Vibe NPC factory includes these archetypes:
 An archetype is a behavior template, not a complete personality. Each generated NPC receives randomized traits and a unique seed so two NPCs with the same archetype can behave differently.
 
 Dangerous or boundary-violating archetypes are simulation archetypes, not desirable behavior. They must still respond to clear boundaries and should not be romanticized by default.
+## NPC↔NPC relationships
+
+### NPC↔NPC simulation
+
+NPC-to-NPC relationships are empty by default. A relationship is created only by an explicit simulation event. The first built-in event is `profile_discovery`: two existing Vibe users can notice each other when the simulation finds a meaningful shared signal (for example a shared interest, city or dating goal). This creates an `acquaintance` and stores a bounded event history. Repeated contacts can gradually strengthen the relationship.
+
+No social link is created merely because two NPCs exist in the same dating pool. The model does not assume pre-existing friendships, ex-partners or offline connections.
+
+NPC-to-NPC relationships are event-driven and separate from the main NPC↔player relationship memory. Being present in the same dating app does not create a social connection.
+
+A relationship starts only when a concrete simulation/activity event connects two NPC actors. The record stores a bounded event history, affinity, trust, sentiment, interaction count and a coarse relationship type. Existing saves can omit this state; the loader treats it as an empty set.
+
+The generation context exposes only already-recorded NPC↔NPC relationships for the current actor. No random friendship, rivalry, ex-partner or acquaintance is created during profile generation.
+
