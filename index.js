@@ -617,7 +617,20 @@ function profileCard(profile) {
   `;
 }
 
+function setWidgetVisible(visible) {
+  const widget = $("#vibe-floating-widget");
+  if (!widget.length) return;
+
+  if (visible) {
+    widget.show();
+    updateUnreadUI();
+  } else {
+    widget.hide();
+  }
+}
+
 function renderApp() {
+  setWidgetVisible(false);
   $("#vibe-overlay").remove();
 
   $("body").append(`
@@ -645,6 +658,7 @@ function renderApp() {
 
 function closeApp() {
   $("#vibe-overlay").remove();
+  setWidgetVisible(true);
 }
 
 function showToast(title, text) {

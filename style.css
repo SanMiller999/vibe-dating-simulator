@@ -841,3 +841,5 @@
 .vibe-widget-badge { display: none !important; }
 
 .vibe-nav-button[data-tab="feed"], .vibe-nav-button[data-tab="chats"], .vibe-nav-button[data-tab="notifications"] { position: relative; }
+
+#vibe-floating-widget[hidden] { display: none !important; }

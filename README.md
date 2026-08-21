@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.4.2
+# Vibe Dating Simulator — v1.4.3
 
 ## Виджет
 
@@ -24,7 +24,7 @@
 - При нахождении виджет на секунду подсвечивается, чтобы его было легко заметить.
 
 
-## Настройки виджета — v1.4.2
+## Настройки виджета — v1.4.3
 
 Все параметры виджета собраны в общем разделе **«Виджет»**.
 
@@ -33,7 +33,7 @@
 - Отдельных кнопок «Найти виджет» и «Вернуть в угол» больше нет.
 
 
-## Уведомления на виджете — v1.4.2
+## Уведомления на виджете — v1.4.3
 
 - При появлении новых входящих сообщений/чатов на виджете появляется маленький счётчик.
 - Иконка дополнительно подсвечивается.
@@ -42,14 +42,14 @@
 - В настройках раздела «Виджет» остались только размер, включение/выключение и кнопка **«Поиск»**.
 
 
-## Иконки приложения — v1.4.2
+## Иконки приложения — v1.4.3
 
 - Иконка раздела **«Уведомления»** заменена на графическую иконку, выбранную для проекта.
 - Та же иконка используется внутри карточки уведомления.
 - Иконка хранится отдельно в `assets/vibe-notifications-icon.png`.
 
 
-## Иконка «Чаты» — v1.4.2
+## Иконка «Чаты» — v1.4.3
 
 Для раздела **«Чаты»** использована выбранная пользователем графическая иконка:
 `assets/vibe-chats-icon.png`.
@@ -57,7 +57,7 @@
 Она применяется в нижней навигации и на пустом экране чатов.
 
 
-## Единый набор иконок — v1.4.2
+## Единый набор иконок — v1.4.3
 
 Все четыре раздела нижней навигации используют единый набор высококачественных прозрачных PNG:
 
@@ -69,7 +69,7 @@
 Все иконки имеют одинаковый холст 256×256 px, одинаковое визуальное поле и прозрачный фон. Они масштабируются CSS без перекрытия окна.
 
 
-## Синхронный счётчик сообщений — v1.4.2
+## Синхронный счётчик сообщений — v1.4.3
 
 Счётчик непрочитанных сообщений теперь общий для двух мест:
 
@@ -81,12 +81,12 @@
 При открытии Vibe, раздела **«Уведомления»** или конкретного чата непрочитанные сообщения считаются прочитанными, и оба счётчика исчезают.
 
 
-## Единый стиль счётчиков — v1.4.2
+## Единый стиль счётчиков — v1.4.3
 
 Счётчик на кнопке **«Уведомления»** и счётчик на плавающем виджете теперь используют одинаковую визуальную спецификацию: размер, форма, цвет, обводка, шрифт и тень.
 
 
-## Настройки памяти и AI — v1.4.2
+## Настройки памяти и AI — v1.4.3
 
 Добавлен отдельный раздел **«Память и AI»**, спроектированный для Vibe как самостоятельная система, а не копия интерфейса других расширений.
 
@@ -103,7 +103,7 @@
 Параметры уже сохраняются в настройках расширения и подготовлены как основа для будущего Context Builder и Memory Core.
 
 
-## Исправление виджета и непрочитанных сообщений — v1.4.2
+## Исправление виджета и непрочитанных сообщений — v1.4.3
 
 - Исправлена ошибка, из-за которой после добавления раздела «Память и AI» клик по виджету мог не открывать Vibe: восстановлены пути к иконкам чатов и уведомлений.
 - В инструкции под виджетом снова явно указано управление: короткий тап открывает Vibe, удержание позволяет перемещать виджет.
@@ -115,7 +115,7 @@
 - Подсветка виджета и его счётчик остаются до тех пор, пока соответствующие сообщения не прочитаны.
 
 
-## Hotfix v1.4.2
+## Hotfix v1.4.3
 
 - Исправлена структура `example.html` после добавления раздела «Память и AI».
 - Кнопки «Открыть Vibe» и «Поиск» теперь являются обычными `button`, чтобы не вызывать отправку/навигацию.
@@ -124,12 +124,12 @@
 - Удержание по-прежнему переводит виджет в режим перетаскивания.
 
 
-## Сворачиваемые настройки виджета — v1.4.2
+## Сворачиваемые настройки виджета — v1.4.3
 
 Раздел **«Виджет»** в настройках теперь сворачивается под собственной кнопкой. По умолчанию его содержимое скрыто и раскрывается нажатием на «Виджет».
 
 
-## UI и уведомления — v1.4.2
+## UI и уведомления — v1.4.3
 
 - Раздел **«Настройки памяти»** теперь является отдельной сворачиваемой секцией, как «Виджет».
 - Иконки нижней панели увеличены до 32×32 px и помещены в компактную четырёхколоночную панель.
@@ -138,7 +138,7 @@
 - Убрана искусственная периодическая генерация входящих сообщений из прототипа. Новое сообщение должно создавать ровно одно уведомление через `addIncomingMessage`; это будет использоваться при подключении реального AI.
 
 
-## Navigation icon scale and badge placement — v1.4.2
+## Navigation icon scale and badge placement — v1.4.3
 
 - Bottom navigation icons are now 84×84 px on normal phones and never below 80×80 px on narrow screens.
 - The navigation bar height and spacing were adjusted so the larger icons remain cleanly contained with their labels.
@@ -147,18 +147,18 @@
 - The widget counter automatically switches to the left side if the widget is too close to the right screen edge.
 
 
-## Иконка «Чаты» — v1.4.2
+## Иконка «Чаты» — v1.4.3
 
 Иконка раздела **«Чаты»** теперь использует тот же исходный графический файл, что и плавающий виджет (`vibe-widget-icon.png`), чтобы изображение было одинаковым и не было искажённой/испорченной отдельной версии.
 
 
-## Иконка «Чаты» — v1.4.2
+## Иконка «Чаты» — v1.4.3
 
 Для раздела **«Чаты»** установлена именно новая загруженная пользователем иконка.
 Она не генерируется и не берётся из старого набора.
 
 
-## Единый визуальный размер иконок — v1.4.2
+## Единый визуальный размер иконок — v1.4.3
 
 Все четыре иконки нижней навигации теперь нормализованы по фактическому размеру рисунка:
 - одинаковая видимая высота;
@@ -169,7 +169,7 @@
 Это исправляет ситуацию, когда у одинаковых CSS-размеров сами рисунки визуально выглядели разного масштаба.
 
 
-## Unread interactions — v1.4.2
+## Unread interactions — v1.4.3
 
 The badge now counts **unread interactions**, not individual messages.
 
@@ -182,7 +182,7 @@ The badge now counts **unread interactions**, not individual messages.
 - The prototype no longer uses a periodic fake-message timer.
 
 
-## Счётчики внутри приложения — v1.4.2
+## Счётчики внутри приложения — v1.4.3
 
 Небольшой одинаковый badge теперь отображается прямо на трёх разделах нижней панели:
 
@@ -193,7 +193,7 @@ The badge now counts **unread interactions**, not individual messages.
 Счётчики реальны, не сбрасываются от простого открытия раздела и исчезают только когда соответствующие взаимодействия действительно прочитаны.
 
 
-## Widget state icons — v1.4.2
+## Widget state icons — v1.4.3
 
 The floating widget now changes its **actual image** based on the unread interaction count:
 
@@ -204,13 +204,13 @@ The floating widget now changes its **actual image** based on the unread interac
 There is no separate CSS bubble on top of the widget; the number is part of the widget artwork.
 
 
-## Лимит счётчика виджета — v1.4.2
+## Лимит счётчика виджета — v1.4.3
 
 Счётчик встроенной цифры на виджете рассчитан на диапазон **1–20**.
 Отдельные изображения для 21–99 удалены, чтобы не раздувать проект.
 
 
-## UI hotfix — v1.4.2
+## UI hotfix — v1.4.3
 
 - Widget and its 20 active-state variants are rendered as white artwork; the unread number remains legible inside its dark count badge.
 - In-app navigation icons are reduced to a compact 36–38 px size so the bottom bar is not oversized.
@@ -218,19 +218,19 @@ There is no separate CSS bubble on top of the widget; the number is part of the 
 - Saved settings are re-applied after the SillyTavern settings HTML is injected.
 
 
-## Widget badge polish — v1.4.2
+## Widget badge polish — v1.4.3
 
 All 20 active widget icon variants now use the same larger black count circle with a crisp white outline and centered white number.
 The badge is part of the artwork itself, so it remains visually attached to the widget at every count from 1 to 20.
 
 
-## Белые состояния виджета — v1.4.2
+## Белые состояния виджета — v1.4.3
 
 Все варианты виджета от `0` до `20` используют белую графику, чтобы контрастировать с фоном.
 Чёрным остаётся только счётный кружок; цифра и обводка кружка — белые.
 
 
-## Новая схема состояний виджета — v1.4.2
+## Новая схема состояний виджета — v1.4.3
 
 - Нулевое состояние использует выбранную иконку письма с сердечком.
 - При наличии непрочитанных взаимодействий используется вариант без сердечка.
@@ -238,19 +238,19 @@ The badge is part of the artwork itself, so it remains visually attached to the 
 - Все варианты сделаны белыми, чтобы не теряться на фоне.
 
 
-## Розовое сердце — v1.4.2
+## Розовое сердце — v1.4.3
 
 В обычном состоянии виджета сердце теперь розовое, а остальная графика остаётся белой.
 Активные варианты `1–20` сохраняют белую графику с чёрным счётчиком и белой обводкой.
 
 
-## Единый визуальный размер виджета — v1.4.2
+## Единый визуальный размер виджета — v1.4.3
 
 Все состояния виджета `0–20` теперь имеют одинаковое видимое поле рисунка: **88×86 px** внутри общего холста 100×100.
 Это убирает разницу в масштабе между письмом с сердцем и вариантами со счётчиком.
 
 
-## Final widget states — v1.4.2
+## Final widget states — v1.4.3
 
 The widget artwork is now based on the final approved visual reference:
 - state 0: white envelope with a pink heart;
@@ -259,12 +259,12 @@ The widget artwork is now based on the final approved visual reference:
 The incorrect duplicated numbers from the reference sheet were corrected in the individual state assets.
 
 
-## Clean widget slicing — v1.4.2
+## Clean widget slicing — v1.4.3
 
 The final widget sheet has been re-cut from the approved reference using individual detected artwork components. Each state is now a separate 256×256 transparent PNG with no neighboring icons or black background fragments.
 
 
-## Verification hotfix — v1.4.2
+## Verification hotfix — v1.4.3
 
 Проверена загруженная сборка с очищенными пользовательские иконками.
 
@@ -273,3 +273,13 @@ The final widget sheet has been re-cut from the approved reference using individ
 - `1–20` → `vibe-widget-active-1.png` … `vibe-widget-active-20.png`.
 
 Также убран дублирующий вызов позиционирования при resize и проверено наличие всех 21 состояний.
+
+
+## Widget visibility and read flow — v1.4.3
+
+- When Vibe opens, the floating widget is hidden so it does not sit over the extension.
+- While the extension is open, the widget remains hidden.
+- Opening a specific chat marks that chat's unread interaction as read.
+- When the last unread interaction is read, `updateUnreadUI()` immediately switches the widget artwork back to the normal pink-heart envelope.
+- When Vibe is closed with `×`, the widget reappears in its current position with the correct current unread state.
+- If unread interactions remain when the extension is closed, the widget reappears in the corresponding numbered state rather than resetting incorrectly.
