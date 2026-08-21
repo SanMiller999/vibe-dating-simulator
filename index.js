@@ -3612,3 +3612,20 @@ jQuery(async () => {
   updateUnreadUI();
   window.setInterval(() => { void tickNpcSimulation(); }, 90_000);
 });
+
+
+function deleteMessageById(chat,id){
+ if(!chat?.messages)return;
+ chat.messages=chat.messages.filter(m=>m.id!==id);
+ saveSettingsDebounced?.();
+}
+async function regenerateMessage(chat,id){
+ const i=chat.messages.findIndex(m=>m.id===id);
+ if(i<0)return;
+ const target=chat.messages[i];
+ if(target.role!=='assistant')return;
+ const context=chat.messages.slice(0,i);
+ const reply=await generateChatReply(context);
+ chat.messages[i]={...target,text:reply,regenerated:true};
+ saveSettingsDebounced?.();
+}

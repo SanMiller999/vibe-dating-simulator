@@ -1151,3 +1151,12 @@
 .vibe-date-observation,.vibe-date-reaction,.vibe-date-discovery,.vibe-date-outcome{padding:12px 14px;border-radius:14px;background:rgba(0,0,0,.12);line-height:1.45;}
 .vibe-date-actions{display:flex;gap:8px;flex-wrap:wrap;}
 .vibe-date-actions .menu_button{flex:1 1 180px;}
+
+
+.vibe-msg-actions{display:flex;gap:6px;opacity:0;transition:.18s}
+.vibe-message:hover .vibe-msg-actions,
+.vibe-message:focus-within .vibe-msg-actions{opacity:1}
+.vibe-msg-btn{width:24px;height:24px;border-radius:999px;border:none;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);display:grid;place-items:center}
+.vibe-msg-btn:hover{transform:scale(1.05)}
+.vibe-profile-preview,.vibe-discovery-preview{display:none!important}
+.vibe-chat-input,.vibeInputBar,[data-vibe-input]{position:sticky!important;bottom:0;z-index:40}

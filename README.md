@@ -1,6 +1,6 @@
 1.22.3
 
-# Vibe Dating Simulator — v1.22.2
+# Vibe Dating Simulator — v1.22.5
 
 
 
@@ -193,3 +193,9 @@ This release closes the main gaps found in the v1.13.0 audit:
 The 1.16.0 maintenance pass also makes memory toggles authoritative in the generated context and gives the NPC action selector a relationship-aware autonomous scoring path.
 
 
+
+
+## v1.22.5
+- Compact hover chat actions (delete/regenerate)
+- Sticky input bar on mobile
+- Removed profile discovery preview
