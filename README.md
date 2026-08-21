@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.6.2
+# Vibe Dating Simulator — v1.11.0
 
 Vibe is a third-party UI extension for SillyTavern that simulates a dating application. It is a game/prototype, not a real dating service.
 
@@ -62,12 +62,12 @@ Do not replace approved artwork without explicit approval.
 Keep source files in the repository and produce ZIP files only as release artifacts.
 
 
-## Player profile editor — v1.6.2
+## Player profile editor — v1.11.0
 
 Добавлен первый реальный слой профиля игрока: фото, имя, возраст, город, пол, кого ищу, цели знакомств, интересы, профессия, образование и «О себе». Данные сохраняются в настройках расширения. Полный AI-анализ фото, несколько фото, public-vs-true persona и Profile Binding остаются следующими этапами.
 
 
-## Hotfix — v1.6.2
+## Hotfix — v1.11.0
 
 Исправлена критическая ошибка инициализации панели расширения, из-за которой Vibe переставал загружаться целиком:
 - объект `settings` теперь создаётся до обращения к `settings.playerProfile`;
@@ -77,5 +77,62 @@ Keep source files in the repository and produce ZIP files only as release artifa
 Функциональность профиля игрока из v1.6.0 сохранена.
 
 
-## Profile UI v1.6.2
+## Profile UI v1.11.0
 Built strictly from the known-good v1.6.1 base. Added the new dating goal, fixed age field styling, and added a saved profile view/editor without changing widget/settings/chat/notification initialization.
+
+
+## Notification-to-chat routing + NPC archetypes — v1.11.0
+
+- Any actor-backed notification can open the single persistent chat with that character.
+- A photo-like or match notification can open a chat with no automatic first message.
+- A combined like+message event can create the same notification and an unread message in the same one-person chat.
+- Activity and chat unread states remain separate.
+- Added a first NPC archetype registry (`NPC_ARCHETYPES`) and dynamic NPC profile store. Each generated NPC gets a random name, profile details, a stable archetype id and randomized behavior parameters.
+- Archetypes are behavior templates, not hard-coded scripts. They are intended to become inputs to the future AI Context Builder / Simulation Engine.
+
+
+## NPC Brain foundation — v1.11.0
+
+Added a structured Character Brain foundation for generated NPCs:
+
+- deterministic seeded behavior;
+- randomized personality traits per NPC;
+- archetype-specific behavioral strategy;
+- persistent brain state;
+- structured NPC context builder;
+- local high-level action selector;
+- dynamic NPC persistence;
+- compatibility migration for earlier generated NPCs.
+
+This does not yet call an LLM. Natural-language generation is the next layer.
+
+
+## NPC archetype expansion — v1.11.0
+
+Expanded the archetype catalog to include the user's requested behavioral profiles, including windy, entertainment-seeking, casual intimacy/sex, serious relationship, friendship, practical networking, kindred spirit, chaotic, dangerous/obsessive, boundary-pushing/pervert, and several additional variants for greater simulation diversity.
+
+
+## NPC Character Factory — v1.11.0
+
+Added the concrete NPC generation layer:
+
+- random identity;
+- public dating profile;
+- profile goals/interests;
+- persistent visual-profile placeholder;
+- private True Persona;
+- Character Brain;
+- deterministic seed;
+- persistent dynamic profile record.
+
+The factory can create a random NPC or a specific archetype. The actual natural-language AI call remains the next integration layer.
+
+
+## AI integration — v1.11.0
+
+The first real NPC reply path now uses SillyTavern's selected LLM through `getContext().generateRaw()`. The NPC Brain chooses a high-level action first, then a context-rich prompt is generated. A separate Vibe API key is not stored.
+
+
+## Expectation / Revelation — v1.11.0
+
+Implemented public-profile vs true-persona discrepancy tracking, contextual discovery, emotional reaction, and relationship trust/attraction updates. The AI context now includes only the discrepancies/revelations the simulation has made relevant.

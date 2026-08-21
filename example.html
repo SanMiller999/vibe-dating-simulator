@@ -42,6 +42,25 @@
         </div>
       </div>
 
+      <div class="vibe-settings-section">
+        <button id="vibe_ai_settings_toggle"
+                type="button"
+                class="vibe-settings-collapsible-button"
+                aria-expanded="false">
+          <span class="vibe-settings-section-title">ИИ собеседники</span>
+          <span class="vibe-settings-collapsible-chevron">⌄</span>
+        </button>
+        <div id="vibe_ai_settings_body" class="vibe-settings-collapsible-body" hidden>
+          <label class="checkbox_label">
+            <input id="vibe_ai_enabled" type="checkbox" checked>
+            <span>Использовать ИИ для ответов персонажей</span>
+          </label>
+          <div class="vibe-setting-help">
+            Используется модель, выбранная в SillyTavern. Отдельный API-ключ Vibe не хранит.
+          </div>
+        </div>
+      </div>
+
       <div class="vibe-settings-section vibe-memory-section">
         <button id="vibe_memory_settings_toggle"
                 type="button"

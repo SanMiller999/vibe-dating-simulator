@@ -89,6 +89,7 @@ const state = {
   chats: {},
   unreadInteractions: {},
   activityNotifications: [],
+  dynamicProfiles: {},
 };
 
 function saveChatState() {
@@ -98,6 +99,7 @@ function saveChatState() {
     skipped: state.skipped,
     unreadInteractions: state.unreadInteractions,
     activityNotifications: state.activityNotifications,
+    dynamicProfiles: state.dynamicProfiles,
   };
   saveSettingsDebounced();
 }
@@ -115,6 +117,9 @@ function loadChatState() {
   state.activityNotifications = Array.isArray(saved.activityNotifications)
     ? saved.activityNotifications
     : [];
+  state.dynamicProfiles = saved.dynamicProfiles && typeof saved.dynamicProfiles === "object"
+    ? saved.dynamicProfiles
+    : {};
 }
 
 function ensureSettings() {
@@ -388,6 +393,39 @@ function createActivityNotification(type, sourceId, meta = {}) {
   return id;
 }
 
+function addExternalActivityEvent({
+  type = "other",
+  actorId = null,
+  actorProfile = null,
+  archetypeId = null,
+  seed = Date.now(),
+  title = "Новое действие",
+  text = "",
+  sendsMessage = false,
+  message = "",
+} = {}) {
+  const profile = actorProfile
+    ? (state.dynamicProfiles[actorProfile.id] = { ...actorProfile })
+    : (actorId ? getProfileById(actorId) : null);
+
+  const sourceId = actorId || actorProfile?.id || null;
+
+  const notificationId = createActivityNotification(type, sourceId, {
+    actorName: profile?.name || "Пользователь",
+    actorProfile: profile || null,
+    archetypeId,
+    seed,
+    title,
+    text,
+  });
+
+  if (sendsMessage && sourceId && message) {
+    addIncomingMessage(sourceId, message);
+  }
+
+  return notificationId;
+}
+
 function markActivityRead(notificationId) {
   const item = (state.activityNotifications || []).find(x => x.id === notificationId);
   if (!item) return;
@@ -465,6 +503,184 @@ function updateUnreadUI() {
 
 }
 
+
+const NPC_ARCHETYPES = Object.freeze({
+  windy: {
+    label: "Ветреный",
+    goals: ["Свидания", "Общение"],
+    style: ["быстро загорается", "может менять интерес", "легко отвлекается"],
+    pacing: "быстрый",
+    initiative: 0.8,
+    consistency: 0.45,
+    flirt: 0.7,
+  },
+  entertainment: {
+    label: "Ищущий развлечений",
+    goals: ["Свидания", "Общение"],
+    style: ["любит спонтанность", "любит шутки", "избегает скучных разговоров"],
+    pacing: "быстрый",
+    initiative: 0.85,
+    consistency: 0.5,
+    flirt: 0.65,
+  },
+  casual_intimacy: {
+    label: "Ищущий интим без обязательств",
+    goals: ["Интим без обязательств"],
+    style: ["прямолинейный", "быстро обозначает ожидания", "уважает явное согласие и границы"],
+    pacing: "быстрый",
+    initiative: 0.9,
+    consistency: 0.55,
+    flirt: 0.9,
+  },
+  serious_relationship: {
+    label: "Ищущий серьёзных отношений",
+    goals: ["Серьёзные отношения", "Отношения"],
+    style: ["осторожный", "последовательный", "ценит доверие"],
+    pacing: "средний",
+    initiative: 0.6,
+    consistency: 0.9,
+    flirt: 0.5,
+  },
+  friendship: {
+    label: "Ищущий дружбу",
+    goals: ["Дружба", "Общение"],
+    style: ["общительный", "эмпатичный", "не торопит романтику"],
+    pacing: "средний",
+    initiative: 0.65,
+    consistency: 0.85,
+    flirt: 0.2,
+  },
+  networking: {
+    label: "Ищущий полезные знакомства",
+    goals: ["Общение"],
+    style: ["целеустремлённый", "задаёт конкретные вопросы", "интересуется навыками и делами"],
+    pacing: "средний",
+    initiative: 0.7,
+    consistency: 0.8,
+    flirt: 0.15,
+  },
+  eccentric: {
+    label: "Сумасшедший / хаотичный",
+    goals: ["Общение", "Свидания"],
+    style: ["непредсказуемый", "скачет между темами", "необычный юмор"],
+    pacing: "непредсказуемый",
+    initiative: 0.75,
+    consistency: 0.3,
+    flirt: 0.4,
+  },
+  boundary_pusher: {
+    label: "Перверт / нарушитель границ",
+    goals: ["Интим без обязательств", "Свидания"],
+    style: ["может быть навязчивым", "проверяет границы", "должен реагировать на отказ"],
+    pacing: "быстрый",
+    initiative: 0.85,
+    consistency: 0.55,
+    flirt: 0.9,
+  },
+  intense: {
+    label: "Тревожный / навязчиво-влюбчивый",
+    goals: ["Отношения"],
+    style: ["быстро привязывается", "может быть ревнивым", "нуждается в ясности"],
+    pacing: "быстрый",
+    initiative: 0.95,
+    consistency: 0.5,
+    flirt: 0.8,
+  },
+  kindred_spirit: {
+    label: "Ищущий единомышленника",
+    goals: ["Общение", "Дружба", "Серьёзные отношения"],
+    style: ["ищет совпадение ценностей", "любит глубокие темы", "наблюдательный"],
+    pacing: "средний",
+    initiative: 0.65,
+    consistency: 0.9,
+    flirt: 0.45,
+  },
+});
+
+const NPC_FIRST_NAMES = [
+  "Анна", "Катя", "Лера", "Маша", "Ника", "София", "Ирина", "Полина",
+  "Алексей", "Максим", "Илья", "Денис", "Артём", "Даниил", "Михаил", "Роман"
+];
+
+function getAllProfiles() {
+  return [
+    ...profiles,
+    ...Object.values(state.dynamicProfiles || {}),
+  ];
+}
+
+function getProfileById(id) {
+  return getAllProfiles().find(profile => profile.id === id) || null;
+}
+
+function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now()) {
+  const archetype = NPC_ARCHETYPES[archetypeId] || NPC_ARCHETYPES.kindred_spirit;
+  const rng = (() => {
+    let x = Number(seed) || Date.now();
+    return () => {
+      x = (x * 1664525 + 1013904223) % 4294967296;
+      return x / 4294967296;
+    };
+  })();
+
+  const firstName = NPC_FIRST_NAMES[Math.floor(rng() * NPC_FIRST_NAMES.length)];
+  const id = `npc_${Date.now()}_${Math.floor(rng() * 1e9)}`;
+
+  const profile = {
+    id,
+    name: firstName,
+    age: 21 + Math.floor(rng() * 24),
+    city: ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск"][Math.floor(rng() * 5)],
+    status: rng() > 0.5 ? "В сети" : "Была недавно",
+    about: "",
+    interests: [],
+    color: "#e7c6d3",
+    firstMessage: "",
+    ai: {
+      archetypeId,
+      archetypeLabel: archetype.label,
+      goals: [...archetype.goals],
+      style: [...archetype.style],
+      pacing: archetype.pacing,
+      initiative: clamp(archetype.initiative + (rng() - 0.5) * 0.25, 0, 1),
+      consistency: clamp(archetype.consistency + (rng() - 0.5) * 0.25, 0, 1),
+      flirt: clamp(archetype.flirt + (rng() - 0.5) * 0.25, 0, 1),
+      seed: Math.floor(rng() * 2147483647),
+    },
+  };
+
+  const interestPool = ["Музыка","Кино","Путешествия","Игры","Книги","Спорт","Кофе","Искусство","Еда","Прогулки"];
+  const shuffled = [...interestPool].sort(() => rng() - 0.5);
+  profile.interests = shuffled.slice(0, 3);
+
+  profile.about = `${archetype.label}. ${archetype.style[rng() * archetype.style.length | 0]}.`;
+  state.dynamicProfiles[id] = profile;
+  saveChatState();
+  return profile;
+}
+
+function ensureProfileFromActivity(item) {
+  if (!item) return null;
+
+  const existing = getProfileById(item.sourceId || item.actorId);
+  if (existing) return existing;
+
+  if (item.actorProfile) {
+    state.dynamicProfiles[item.actorProfile.id] = {
+      ...item.actorProfile,
+      ai: item.actorProfile.ai || {},
+    };
+    saveChatState();
+    return state.dynamicProfiles[item.actorProfile.id];
+  }
+
+  if (item.archetypeId) {
+    return createRandomNpcProfile(item.archetypeId, item.seed || Date.now());
+  }
+
+  return null;
+}
+
 function ensureChat(id) {
   if (!state.chats[id]) {
     state.chats[id] = {
@@ -516,7 +732,7 @@ function addIncomingMessage(id, text) {
   if (!hasUnreadForChat) {
     createInteraction("chat_message", id, {
       title: "Новое сообщение",
-      description: `Новое сообщение от ${profiles.find(p => p.id === id)?.name || "пользователя"}`
+      description: `Новое сообщение от ${getProfileById(id)?.name || "пользователя"}`
     });
   } else {
     updateUnreadUI();
@@ -524,25 +740,47 @@ function addIncomingMessage(id, text) {
 }
 
 function createDemoMatch(profileId) {
-  const profile = profiles.find(item => item.id === profileId);
+  const profile = getProfileById(profileId);
   if (!profile) return;
 
-  createActivityNotification("match", profileId, {
+  addExternalActivityEvent({
+    type: "match",
+    actorId: profile.id,
     title: "У вас совпадение",
     text: `Теперь вы можете начать чат с ${profile.name}.`,
   });
+
   showToast("Демо-событие", `Создано совпадение с ${profile.name}.`);
 }
 
 function createDemoPhotoLike(profileId) {
-  const profile = profiles.find(item => item.id === profileId);
+  const profile = getProfileById(profileId);
   if (!profile) return;
 
-  createActivityNotification("photo_like", profileId, {
+  addExternalActivityEvent({
+    type: "photo_like",
+    actorId: profile.id,
     title: "Лайк фото",
     text: `${profile.name} понравилась ваша фотография.`,
   });
+
   showToast("Демо-событие", `Создан лайк фото от ${profile.name}.`);
+}
+
+function createDemoPhotoLikeAndMessage(profileId) {
+  const profile = getProfileById(profileId);
+  if (!profile) return;
+
+  addExternalActivityEvent({
+    type: "photo_like",
+    actorId: profile.id,
+    title: "Лайк фото",
+    text: `${profile.name} понравилась ваша фотография — и написал(а) вам.`,
+    sendsMessage: true,
+    message: "Привет :) Твоя фотография зацепила меня. Как тебе мой профиль?",
+  });
+
+  showToast("Демо-событие", `Лайк + новое сообщение от ${profile.name}.`);
 }
 
 function resetDemoState() {
@@ -552,6 +790,7 @@ function resetDemoState() {
   state.chats = {};
   state.unreadInteractions = {};
   state.activityNotifications = [];
+  state.dynamicProfiles = {};
   saveChatState();
   updateUnreadUI();
 
@@ -911,7 +1150,7 @@ function showChats() {
     ${
       entries.length
         ? entries.map(id => {
-            const p = profiles.find(x => x.id === id);
+            const p = getProfileById(id);
             if (!p) return "";
             const chat = ensureChat(id);
             const last = chat.messages[chat.messages.length - 1];
@@ -936,7 +1175,7 @@ function showChats() {
 
   $(".vibe-chat-row").on("click", function () {
     const id = $(this).data("profile");
-    const p = profiles.find(x => x.id === id);
+    const p = getProfileById(id);
     showChat(p);
   });
 }
@@ -951,16 +1190,15 @@ function showNotifications() {
     ${
       items.length
         ? items.map(item => {
-            const p = profiles.find(x => x.id === item.sourceId);
+            const p = getProfileById(item.sourceId || item.actorId);
             const name = p ? p.name : (item.actorName || "Пользователь");
             const title = item.title || "Новое действие";
             const text = item.text || "";
-            const clickable = item.type === "match" && p;
+            const clickable = Boolean(item.sourceId || item.actorId || item.actorProfile || item.archetypeId);
 
             return `
               <button class="vibe-activity-row ${clickable ? "vibe-activity-clickable" : ""}"
-                      data-notification-id="${escapeHtml(item.id)}"
-                      data-profile="${clickable ? escapeHtml(p.id) : ""}">
+                      data-notification-id="${escapeHtml(item.id)}">
                 <div class="vibe-notification-icon">
                   <img src="${notificationsIconPath}" alt="">
                 </div>
@@ -983,21 +1221,24 @@ function showNotifications() {
 
   $(".vibe-activity-row").on("click", function () {
     const notificationId = $(this).data("notification-id");
-    const profileId = $(this).data("profile");
+    const item = (state.activityNotifications || []).find(x => x.id === notificationId);
+    if (!item) return;
 
     markActivityRead(notificationId);
 
-    if (profileId) {
-      const p = profiles.find(x => x.id === profileId);
-      if (p) {
-        $(".vibe-nav-button").removeClass("vibe-nav-active");
-        $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
-        ensureChat(p.id);
-        showChat(p);
-      }
-    } else {
+    const profile = ensureProfileFromActivity(item);
+    if (!profile) {
       showNotifications();
+      return;
     }
+
+    // Every actor-backed notification can lead to the single persistent chat.
+    // Whether the NPC already sent a message is represented by chat.messages.
+    $(".vibe-nav-button").removeClass("vibe-nav-active");
+    $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
+
+    ensureChat(profile.id);
+    showChat(profile);
   });
 }
 
@@ -1267,6 +1508,23 @@ jQuery(async () => {
 
   bindMemorySettings();
 
+  $("#vibe_ai_enabled").prop("checked", extension_settings[extensionName].aiEnabled !== false);
+  $("#vibe_ai_enabled").on("change", function () {
+    extension_settings[extensionName].aiEnabled = $(this).prop("checked");
+    saveSettingsDebounced();
+  });
+
+  $("#vibe_ai_settings_toggle").on("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const body=$("#vibe_ai_settings_body");
+    const button=$(this);
+    const expanded=button.attr("aria-expanded")==="true";
+    button.attr("aria-expanded",String(!expanded));
+    body.prop("hidden",expanded);
+    button.find(".vibe-settings-collapsible-chevron").text(expanded?"⌄":"⌃");
+  });
+
   $("#vibe_widget_enabled").on("change", function () {
     extension_settings[extensionName].widgetEnabled = $(this).prop("checked");
     saveSettingsDebounced();
@@ -1293,6 +1551,58 @@ jQuery(async () => {
   $("#vibe_dev_photo_like").on("click", function (event) {
     event.preventDefault();
     createDemoPhotoLike("maxim");
+  });
+
+  $("#vibe_dev_like_message").on("click", function (event) {
+    event.preventDefault();
+    createDemoPhotoLikeAndMessage("anna");
+  });
+
+  $("#vibe_dev_create_npc").on("click", function (event) {
+    event.preventDefault();
+
+    const archetypes = Object.keys(NPC_ARCHETYPES);
+    const archetypeId = archetypes[Math.floor(Math.random() * archetypes.length)];
+    const profile = createRandomNpcProfile(archetypeId);
+
+    showToast(
+      "Демо-NPC",
+      `${profile.name} — ${profile.ai.brain.archetypeLabel}`,
+    );
+  });
+
+  const npcArchetypeSelect = $("#vibe_dev_npc_archetype");
+  if (npcArchetypeSelect.length) {
+    npcArchetypeSelect.html(
+      Object.entries(NPC_ARCHETYPES)
+        .map(([id, archetype]) => `<option value="${escapeHtml(id)}">${escapeHtml(archetype.label)}</option>`)
+        .join(""),
+    );
+  }
+
+  $("#vibe_dev_create_specific_npc").on("click", function (event) {
+    event.preventDefault();
+    const archetypeId = $("#vibe_dev_npc_archetype").val();
+    createDemoNpcCharacter(archetypeId);
+  });
+
+  $("#vibe_dev_reveal").on("click", function (event) {
+    event.preventDefault();
+    const profile = getProfileById("anna") || getAllProfiles()[0];
+    if (!profile) return;
+
+    initializeRevelationSystem(profile);
+    const discrepancy = profile.deceptionProfile.discrepancies[0];
+    if (!discrepancy) {
+      showToast("Раскрытие", "У персонажа нет скрытого несоответствия.");
+      return;
+    }
+
+    const result = revealProfileDiscrepancy(profile.id, discrepancy.field, {
+      context: "first_meeting",
+    });
+
+    showToast("Раскрытие", result ? `${profile.name}: ${result.reaction}` : "Уже раскрыто.");
   });
 
   $("#vibe_dev_reset").on("click", function (event) {

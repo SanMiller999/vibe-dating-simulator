@@ -805,3 +805,8 @@ Do not break these without explicit user approval:
 - Widget number must reflect the real unread total.
 - Do not silently remove settings.
 - Do not silently replace approved artwork.
+
+
+# Expectation / Discrepancy / Revelation
+
+Public profiles can differ from True Persona. The simulation tracks expectations, discrepancies, discovery and emotional reactions. Not every mismatch is revealed, and reactions depend on severity, intent, trust, attraction and discovery context.
