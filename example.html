@@ -101,6 +101,23 @@
         </div>
       </div>
 
+      <div class="vibe-settings-section vibe-developer-section">
+        <label class="checkbox_label">
+          <input id="vibe_developer_mode" type="checkbox" />
+          <span>Режим разработчика</span>
+        </label>
+        <div class="vibe-setting-help">
+          Создаёт только локальные тестовые события. Никакие запросы к AI или внешним сервисам не выполняются.
+        </div>
+
+        <div id="vibe_developer_tools" class="vibe-developer-tools" hidden>
+          <input id="vibe_dev_incoming_message" class="menu_button" type="button" value="Демо: сообщение от Анны" />
+          <input id="vibe_dev_match" class="menu_button" type="button" value="Демо: match с Катей" />
+          <input id="vibe_dev_photo_like" class="menu_button" type="button" value="Демо: лайк фото от Максима" />
+          <input id="vibe_dev_reset" class="menu_button" type="button" value="Сбросить демо-данные" />
+        </div>
+      </div>
+
       <div style="margin-top:12px;">
         <input id="vibe_open_button" class="menu_button" type="button" value="Открыть Vibe" />
       </div>

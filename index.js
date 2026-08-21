@@ -4,7 +4,6 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
-const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active-1.png`;
 const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
 const vibeChatsIconPath = `${extensionFolderPath}/assets/vibe-chats-icon.png`;
 const notificationsIconPath = `${extensionFolderPath}/assets/vibe-notifications-icon.png`;
@@ -27,6 +26,7 @@ const DEFAULT_SETTINGS = {
   widgetSize: 46,
   widgetX: null,
   widgetY: null,
+  developerMode: false,
 };
 
 const DRAG_HOLD_MS = 340;
@@ -71,9 +71,37 @@ const profiles = [
 const state = {
   currentIndex: 0,
   liked: [],
+  skipped: [],
   chats: {},
   unreadInteractions: {},
+  activityNotifications: [],
 };
+
+function saveChatState() {
+  extension_settings[extensionName].chatState = {
+    chats: state.chats,
+    liked: state.liked,
+    skipped: state.skipped,
+    unreadInteractions: state.unreadInteractions,
+    activityNotifications: state.activityNotifications,
+  };
+  saveSettingsDebounced();
+}
+
+function loadChatState() {
+  const saved = extension_settings[extensionName]?.chatState;
+  if (!saved || typeof saved !== "object") return;
+
+  state.chats = saved.chats && typeof saved.chats === "object" ? saved.chats : {};
+  state.liked = Array.isArray(saved.liked) ? saved.liked : [];
+  state.skipped = Array.isArray(saved.skipped) ? saved.skipped : [];
+  state.unreadInteractions = saved.unreadInteractions && typeof saved.unreadInteractions === "object"
+    ? saved.unreadInteractions
+    : {};
+  state.activityNotifications = Array.isArray(saved.activityNotifications)
+    ? saved.activityNotifications
+    : {};
+}
 
 function ensureSettings() {
   extension_settings[extensionName] = {
@@ -174,6 +202,8 @@ function updateSettingsUI() {
   const settings = extension_settings[extensionName];
 
   $("#vibe_widget_enabled").prop("checked", !!settings.widgetEnabled);
+  $("#vibe_developer_mode").prop("checked", !!settings.developerMode);
+  $("#vibe_developer_tools").prop("hidden", !settings.developerMode);
 
   const size = clamp(Number(settings.widgetSize) || DEFAULT_SETTINGS.widgetSize, 24, 160);
   $("#vibe_widget_size").val(size);
@@ -190,28 +220,6 @@ function getWidgetBounds(size) {
   return { minX: margin, minY: margin, maxX, maxY };
 }
 
-
-function positionWidgetBadge() {
-  const widget = document.getElementById("vibe-floating-widget");
-  const badge = widget?.querySelector(".vibe-widget-badge");
-  if (!widget || !badge) return;
-
-  const rect = widget.getBoundingClientRect();
-  const badgeWidth = Math.max(14, badge.offsetWidth || 14);
-  const margin = 4;
-
-  // Prefer the right side of the icon. If it would leave the viewport,
-  // switch to the left side.
-  if (rect.right + badgeWidth + margin <= window.innerWidth) {
-    badge.style.left = "calc(100% + 4px)";
-    badge.style.right = "auto";
-  } else {
-    badge.style.right = "calc(100% + 4px)";
-    badge.style.left = "auto";
-  }
-
-  badge.style.top = "-3px";
-}
 
 function applyWidgetPosition() {
   const settings = extension_settings[extensionName];
@@ -243,7 +251,6 @@ function applyWidgetPosition() {
 
   settings.widgetX = x;
   settings.widgetY = y;
-  positionWidgetBadge();
 }
 
 
@@ -298,7 +305,6 @@ function createWidget() {
       <img class="vibe-floating-widget-image"
            src="${widgetIconPath}"
            alt="">
-      <span class="vibe-count-badge vibe-widget-badge" aria-label="Новые чаты">0</span>
     </button>
   `);
 
@@ -328,10 +334,8 @@ function getUnreadChatsCount() {
   return getUnreadInteractionCount("chat_message");
 }
 
-function getUnreadDatingCount() {
-  return Object.values(state.unreadInteractions || {}).filter(item => {
-    return item && !item.read && ["match", "like"].includes(item.type);
-  }).length;
+function getUnreadActivityCount() {
+  return (state.activityNotifications || []).filter(item => item && !item.read).length;
 }
 
 function createInteraction(type, sourceId, meta = {}) {
@@ -345,7 +349,32 @@ function createInteraction(type, sourceId, meta = {}) {
     ...meta,
   };
   updateUnreadUI();
+  saveChatState();
   return id;
+}
+
+function createActivityNotification(type, sourceId, meta = {}) {
+  const id = `activity_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  state.activityNotifications = state.activityNotifications || [];
+  state.activityNotifications.unshift({
+    id,
+    type,
+    sourceId,
+    createdAt: Date.now(),
+    read: false,
+    ...meta,
+  });
+  updateUnreadUI();
+  saveChatState();
+  return id;
+}
+
+function markActivityRead(notificationId) {
+  const item = (state.activityNotifications || []).find(x => x.id === notificationId);
+  if (!item) return;
+  item.read = true;
+  updateUnreadUI();
+  saveChatState();
 }
 
 function markChatInteractionsRead(chatId) {
@@ -355,6 +384,7 @@ function markChatInteractionsRead(chatId) {
     }
   });
   updateUnreadUI();
+  saveChatState();
 }
 
 function setNavBadge(button, count, label) {
@@ -376,16 +406,17 @@ function setNavBadge(button, count, label) {
 }
 
 function updateUnreadUI() {
-  const total = getUnreadInteractionCount();
+  const unreadChats = getUnreadChatsCount();
+  const unreadActivity = getUnreadActivityCount();
+  const total = Math.min(20, unreadChats + unreadActivity);
 
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
-    const badge = widget.find(".vibe-widget-badge");
     const image = widget.find(".vibe-floating-widget-image");
 
     // The number is part of the widget image itself.
-    badge.hide().attr("aria-hidden", "true");
     image.attr("src", getWidgetIconPathForCount(total));
+    widget.attr("aria-label", total ? `Новых взаимодействий: ${total}` : "Открыть Vibe");
 
     if (total) {
       widget.addClass("vibe-widget-notify");
@@ -394,41 +425,56 @@ function updateUnreadUI() {
     }
   }
 
-  const notificationButton = $('.vibe-nav-button[data-tab="notifications"]');
-  if (notificationButton.length) {
-    let badge = notificationButton.find(".vibe-nav-badge");
-    if (!badge.length) {
-      notificationButton.append('<span class="vibe-count-badge vibe-nav-badge" aria-label="Непрочитанные взаимодействия"></span>');
-      badge = notificationButton.find(".vibe-nav-badge");
-    }
+  setNavBadge(
+    $('.vibe-nav-button[data-tab="chats"]'),
+    unreadChats,
+    "Непрочитанные чаты"
+  );
 
-    if (!total) {
-      badge.text("0").attr("aria-hidden", "true").hide();
-    } else {
-      badge.text(total > 99 ? "99+" : String(total))
-        .attr("aria-hidden", "false")
-        .show();
-    }
+  setNavBadge(
+    $('.vibe-nav-button[data-tab="notifications"]'),
+    unreadActivity,
+    "Новые действия"
+  );
+
+  // No badge on «Знакомства»: it is only the swipe/like/dislike area.
+  const feedButton = $('.vibe-nav-button[data-tab="feed"]');
+  const feedBadge = feedButton.find(".vibe-nav-badge");
+  if (feedBadge.length) {
+    feedBadge.text("0").attr("aria-hidden", "true").hide();
   }
 
-  // Smaller, section-specific badges inside the app.
-  const chats = getUnreadChatsCount();
-  const dating = getUnreadDatingCount();
-
-  setNavBadge($('.vibe-nav-button[data-tab="chats"]'), chats, "Непрочитанные чаты");
-  setNavBadge($('.vibe-nav-button[data-tab="feed"]'), dating, "Новые знакомства");
-
-  positionWidgetBadge();
 }
 
 function ensureChat(id) {
   if (!state.chats[id]) {
-    state.chats[id] = { messages: [] };
+    state.chats[id] = {
+      conversationId: `conversation_${id}`,
+      profileId: id,
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
   }
+
   if (Array.isArray(state.chats[id])) {
-    state.chats[id] = { messages: state.chats[id] };
+    state.chats[id] = {
+      conversationId: `conversation_${id}`,
+      profileId: id,
+      messages: state.chats[id],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
   }
-  return state.chats[id];
+
+  const chat = state.chats[id];
+  chat.conversationId ||= `conversation_${id}`;
+  chat.profileId ||= id;
+  chat.messages ||= [];
+  chat.createdAt ||= Date.now();
+  chat.updatedAt ||= Date.now();
+
+  return chat;
 }
 
 function addIncomingMessage(id, text) {
@@ -440,6 +486,8 @@ function addIncomingMessage(id, text) {
     text,
     timestamp: Date.now()
   });
+  chat.updatedAt = Date.now();
+  saveChatState();
 
   const hasUnreadForChat = Object.values(state.unreadInteractions || {}).some(
     item => !item.read && item.type === "chat_message" && item.sourceId === id
@@ -454,6 +502,45 @@ function addIncomingMessage(id, text) {
   } else {
     updateUnreadUI();
   }
+}
+
+function createDemoMatch(profileId) {
+  const profile = profiles.find(item => item.id === profileId);
+  if (!profile) return;
+
+  createActivityNotification("match", profileId, {
+    title: "У вас совпадение",
+    text: `Теперь вы можете начать чат с ${profile.name}.`,
+  });
+  showToast("Демо-событие", `Создано совпадение с ${profile.name}.`);
+}
+
+function createDemoPhotoLike(profileId) {
+  const profile = profiles.find(item => item.id === profileId);
+  if (!profile) return;
+
+  createActivityNotification("photo_like", profileId, {
+    title: "Лайк фото",
+    text: `${profile.name} понравилась ваша фотография.`,
+  });
+  showToast("Демо-событие", `Создан лайк фото от ${profile.name}.`);
+}
+
+function resetDemoState() {
+  state.currentIndex = 0;
+  state.liked = [];
+  state.skipped = [];
+  state.chats = {};
+  state.unreadInteractions = {};
+  state.activityNotifications = [];
+  saveChatState();
+  updateUnreadUI();
+
+  if ($("#vibe-overlay").length) {
+    showFeed();
+  }
+
+  showToast("Vibe", "Демо-данные сброшены.");
 }
 
 function updateWidget() {
@@ -657,6 +744,7 @@ function renderApp() {
 }
 
 function closeApp() {
+  saveChatState();
   $("#vibe-overlay").remove();
   setWidgetVisible(true);
 }
@@ -668,7 +756,22 @@ function showToast(title, text) {
 }
 
 function showFeed() {
-  const profile = profiles[state.currentIndex % profiles.length];
+  const unseenProfiles = profiles.filter(profile => {
+    return !state.liked.includes(profile.id) && !state.skipped.includes(profile.id);
+  });
+
+  if (!unseenProfiles.length) {
+    $("#vibe_content").html(`
+      <div class="vibe-section-title">Знакомства</div>
+      <div class="vibe-empty">
+        <img class="vibe-empty-chat-icon" src="${vibeDatingIconPath}" alt="">
+        <div>Новых анкет пока нет.</div>
+      </div>
+    `);
+    return;
+  }
+
+  const profile = unseenProfiles[state.currentIndex % unseenProfiles.length];
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Знакомства</div>
@@ -681,27 +784,32 @@ function showFeed() {
   `);
 
   $("#vibe_skip").on("click", () => {
-    state.currentIndex++;
+    if (!state.skipped.includes(profile.id)) state.skipped.push(profile.id);
+    state.currentIndex = 0;
+    saveChatState();
     showFeed();
   });
 
   $("#vibe_like").on("click", () => {
-    state.liked.push(profile.id);
+    if (!state.liked.includes(profile.id)) state.liked.push(profile.id);
     const chat = ensureChat(profile.id);
-    chat.messages.push({
-      from: "them",
-      text: profile.firstMessage,
-      timestamp: Date.now()
-    });
 
-    createInteraction("match", profile.id, {
-      title: "Новый match",
-      description: `Взаимная симпатия с ${profile.name}`
-    });
+    // A local like is not yet a mutual match and never creates an unread notification.
+    // It only unlocks/opens the conversation.
+    if (!chat.messages.length) {
+      chat.messages.push({
+        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        from: "them",
+        text: profile.firstMessage,
+        timestamp: Date.now()
+      });
+      chat.updatedAt = Date.now();
+    }
 
-    showToast("💕 Match", `У вас совпадение с ${profile.name}!`);
+    saveChatState();
+    showToast("Лайк отправлен", `Вы можете начать чат с ${profile.name}.`);
 
-    state.currentIndex++;
+    state.currentIndex = 0;
     showChat(profile);
   });
 }
@@ -743,12 +851,20 @@ function showChat(profile) {
     if (!text) return;
 
     const chat = ensureChat(profile.id);
-    chat.messages.push({ from: "me", text, timestamp: Date.now() });
     chat.messages.push({
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      from: "me",
+      text,
+      timestamp: Date.now()
+    });
+    chat.messages.push({
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       from: "them",
       text: "Хаха :) Расскажи немного о себе?",
       timestamp: Date.now()
     });
+    chat.updatedAt = Date.now();
+    saveChatState();
 
     showChat(profile);
   });
@@ -758,10 +874,17 @@ function showChat(profile) {
       $("#vibe_send").trigger("click");
     }
   });
+
+  requestAnimationFrame(() => {
+    const content = document.getElementById("vibe_content");
+    if (content) content.scrollTop = content.scrollHeight;
+  });
 }
 
 function showChats() {
-  const entries = Object.keys(state.chats);
+  const entries = Object.keys(state.chats).sort((a, b) => {
+    return (ensureChat(b).updatedAt || 0) - (ensureChat(a).updatedAt || 0);
+  });
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Чаты</div>
@@ -770,6 +893,7 @@ function showChats() {
       entries.length
         ? entries.map(id => {
             const p = profiles.find(x => x.id === id);
+            if (!p) return "";
             const chat = ensureChat(id);
             const last = chat.messages[chat.messages.length - 1];
 
@@ -800,28 +924,62 @@ function showChats() {
 
 
 function showNotifications() {
-  const count = state.liked.length;
-  const unread = getUnreadInteractionCount();
+  const items = state.activityNotifications || [];
 
   $("#vibe_content").html(`
     <div class="vibe-section-title">Уведомления</div>
 
-    <div class="vibe-notification">
-      <div class="vibe-notification-icon"><img src="${notificationsIconPath}" alt=""></div>
-      <div>
-        <strong>${unread ? `${unread} непрочитанных сообщения` : (count ? count + " новое совпадение" : "Пока тихо")}</strong>
-        <div>
-          ${
-            unread
-              ? "Откройте нужный чат, чтобы прочитать сообщения."
-              : (count
-                  ? "Откройте раздел «Чаты», чтобы продолжить знакомство."
-                  : "Когда кто-нибудь проявит интерес, он появится здесь.")
-          }
-        </div>
-      </div>
-    </div>
+    ${
+      items.length
+        ? items.map(item => {
+            const p = profiles.find(x => x.id === item.sourceId);
+            const name = p ? p.name : (item.actorName || "Пользователь");
+            const title = item.title || "Новое действие";
+            const text = item.text || "";
+            const clickable = item.type === "match" && p;
+
+            return `
+              <button class="vibe-activity-row ${clickable ? "vibe-activity-clickable" : ""}"
+                      data-notification-id="${escapeHtml(item.id)}"
+                      data-profile="${clickable ? escapeHtml(p.id) : ""}">
+                <div class="vibe-notification-icon">
+                  <img src="${notificationsIconPath}" alt="">
+                </div>
+                <div class="vibe-activity-body">
+                  <strong>${escapeHtml(name)} — ${escapeHtml(title)}</strong>
+                  <div>${escapeHtml(text)}</div>
+                  ${item.read ? "" : `<span class="vibe-activity-unread">Новое</span>`}
+                </div>
+              </button>
+            `;
+          }).join("")
+        : `
+          <div class="vibe-empty">
+            <img class="vibe-empty-chat-icon" src="${notificationsIconPath}" alt="">
+            <div>Пока нет новых действий.</div>
+          </div>
+        `
+    }
   `);
+
+  $(".vibe-activity-row").on("click", function () {
+    const notificationId = $(this).data("notification-id");
+    const profileId = $(this).data("profile");
+
+    markActivityRead(notificationId);
+
+    if (profileId) {
+      const p = profiles.find(x => x.id === profileId);
+      if (p) {
+        $(".vibe-nav-button").removeClass("vibe-nav-active");
+        $('.vibe-nav-button[data-tab="chats"]').addClass("vibe-nav-active");
+        ensureChat(p.id);
+        showChat(p);
+      }
+    } else {
+      showNotifications();
+    }
+  });
 }
 
 function showPlayerProfile() {
@@ -867,6 +1025,7 @@ function bindAppEvents() {
 
 jQuery(async () => {
   ensureSettings();
+  loadChatState();
 
   const settingsHtml = await $.get(`${extensionFolderPath}/example.html`);
   $("#extensions_settings").append(settingsHtml);
@@ -878,6 +1037,33 @@ jQuery(async () => {
     extension_settings[extensionName].widgetEnabled = $(this).prop("checked");
     saveSettingsDebounced();
     updateWidget();
+  });
+
+  $("#vibe_developer_mode").on("change", function () {
+    extension_settings[extensionName].developerMode = $(this).prop("checked");
+    saveSettingsDebounced();
+    updateSettingsUI();
+  });
+
+  $("#vibe_dev_incoming_message").on("click", function (event) {
+    event.preventDefault();
+    addIncomingMessage("anna", "Демо-сообщение: привет! Как проходит твой день?");
+    showToast("Демо-событие", "Создано входящее сообщение от Анны.");
+  });
+
+  $("#vibe_dev_match").on("click", function (event) {
+    event.preventDefault();
+    createDemoMatch("katya");
+  });
+
+  $("#vibe_dev_photo_like").on("click", function (event) {
+    event.preventDefault();
+    createDemoPhotoLike("maxim");
+  });
+
+  $("#vibe_dev_reset").on("click", function (event) {
+    event.preventDefault();
+    resetDemoState();
   });
 
   $("#vibe_widget_size").on("input change", function () {
@@ -932,7 +1118,6 @@ jQuery(async () => {
   $(window).on("resize", () => {
     if ($("#vibe-floating-widget").length) {
       applyWidgetPosition();
-      positionWidgetBadge();
       saveSettingsDebounced();
     }
   });
