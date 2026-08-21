@@ -4,7 +4,7 @@ import { saveSettingsDebounced } from "../../../../script.js";
 const extensionName = "vibe-dating-simulator";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
-const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active.png`;
+const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active-1.png`;
 const vibeDatingIconPath = `${extensionFolderPath}/assets/vibe-dating-icon.png`;
 const vibeChatsIconPath = `${extensionFolderPath}/assets/vibe-chats-icon.png`;
 const notificationsIconPath = `${extensionFolderPath}/assets/vibe-notifications-icon.png`;
@@ -371,53 +371,48 @@ function setNavBadge(button, count, label) {
 
 function updateUnreadUI() {
   const total = getUnreadInteractionCount();
-  const chats = getUnreadChatsCount();
-  const dating = getUnreadDatingCount();
 
-  // Floating widget shows the total number of unread interactions.
   const widget = $("#vibe-floating-widget");
   if (widget.length) {
     const badge = widget.find(".vibe-widget-badge");
     const image = widget.find(".vibe-floating-widget-image");
 
+    // The number is part of the widget image itself.
+    badge.hide().attr("aria-hidden", "true");
+    image.attr("src", getWidgetIconPathForCount(total));
+
+    if (total) {
+      widget.addClass("vibe-widget-notify");
+    } else {
+      widget.removeClass("vibe-widget-notify");
+    }
+  }
+
+  const notificationButton = $('.vibe-nav-button[data-tab="notifications"]');
+  if (notificationButton.length) {
+    let badge = notificationButton.find(".vibe-nav-badge");
+    if (!badge.length) {
+      notificationButton.append('<span class="vibe-count-badge vibe-nav-badge" aria-label="Непрочитанные взаимодействия"></span>');
+      badge = notificationButton.find(".vibe-nav-badge");
+    }
+
     if (!total) {
       badge.text("0").attr("aria-hidden", "true").hide();
-      widget.removeClass("vibe-widget-notify");
-      image.attr("src", widgetIconPath);
     } else {
       badge.text(total > 99 ? "99+" : String(total))
         .attr("aria-hidden", "false")
         .show();
-      widget.addClass("vibe-widget-notify");
-      image.attr("src", widgetActiveIconPath);
     }
   }
 
-  // Inside the app each relevant section gets its own small, real counter.
-  setNavBadge(
-    $('.vibe-nav-button[data-tab="notifications"]'),
-    total,
-    "Непрочитанные уведомления"
-  );
+  // Smaller, section-specific badges inside the app.
+  const chats = getUnreadChatsCount();
+  const dating = getUnreadDatingCount();
 
-  setNavBadge(
-    $('.vibe-nav-button[data-tab="chats"]'),
-    chats,
-    "Непрочитанные чаты"
-  );
-
-  setNavBadge(
-    $('.vibe-nav-button[data-tab="feed"]'),
-    dating,
-    "Новые знакомства"
-  );
+  setNavBadge($('.vibe-nav-button[data-tab="chats"]'), chats, "Непрочитанные чаты");
+  setNavBadge($('.vibe-nav-button[data-tab="feed"]'), dating, "Новые знакомства");
 
   positionWidgetBadge();
-}
-
-
-function addDatingInteraction(type, sourceId, meta = {}) {
-  return createInteraction(type, sourceId, meta);
 }
 
 function ensureChat(id) {
