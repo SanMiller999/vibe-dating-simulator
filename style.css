@@ -900,44 +900,194 @@
 .vibe-chip.selected{background:#f3d7e3;border-color:#d85a81;color:#7c2848}
 .vibe-profile-save{width:100%;margin-top:4px}
 
-.vibe-profile-page{padding-bottom:26px}
-.vibe-profile-cover{height:86px;margin:-10px -10px 0;background:linear-gradient(135deg,#f7dbe7 0%,#f5eef3 100%);border-radius:0 0 22px 22px}
-.vibe-profile-hero{display:flex;align-items:flex-end;gap:14px;margin-top:-42px;padding:0 12px}
-.vibe-profile-avatar-large{width:96px;height:96px;flex:0 0 96px;border-radius:28px;overflow:hidden;background:#f2f2f5;border:4px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.12)}
-.vibe-profile-avatar-large img{width:100%;height:100%;object-fit:cover}
-.vibe-profile-avatar-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#a0a0a8;font-size:42px}
-.vibe-profile-hero-info{min-width:0;padding-bottom:6px}
-.vibe-profile-name-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.vibe-profile-name-row h1{margin:0;font-size:23px;line-height:1.1}
-.vibe-profile-age{font-size:16px;color:#66666f}
-.vibe-profile-meta{margin-top:4px;font-size:12px;color:#777780}
-.vibe-profile-actions{padding:12px}
-.vibe-profile-edit-button{width:100%}
-.vibe-profile-card{margin:0 0 10px;padding:14px;border-radius:16px;background:#fff;border:1px solid #ededf1;box-shadow:0 2px 10px rgba(0,0,0,.035)}
-.vibe-profile-card-title{font-size:13px;font-weight:750;margin-bottom:7px}
-.vibe-profile-about,.vibe-profile-goals,.vibe-profile-status-text{color:#64646c;font-size:13px;line-height:1.5}
-.vibe-profile-tags{display:flex;flex-wrap:wrap;gap:7px}
-.vibe-profile-tag{padding:7px 10px;border-radius:999px;background:#f8eef3;color:#7b3652;font-size:11px}
-.vibe-profile-info-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 0}
-.vibe-profile-info-row+ .vibe-profile-info-row{border-top:1px solid #f0f0f3}
-.vibe-profile-info-row span{color:#85858d;font-size:12px}
-.vibe-profile-info-row strong{font-size:12px;text-align:right}
-.vibe-profile-profile-state{display:flex;align-items:center;gap:10px}
-.vibe-profile-status-dot{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:#67b77f;box-shadow:0 0 0 4px rgba(103,183,127,.12)}
-.vibe-profile-editor-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.vibe-profile-editor{display:flex;flex-direction:column;gap:14px;padding-bottom:24px}
-.vibe-profile-photo-block{display:flex;flex-direction:column;align-items:center;gap:8px}
-.vibe-profile-main-photo{width:min(72vw,260px);aspect-ratio:1/1;border-radius:20px;overflow:hidden;background:#f1f1f4;display:flex;align-items:center;justify-content:center}
-.vibe-profile-main-photo img{width:100%;height:100%;object-fit:cover}
-.vibe-profile-photo-placeholder{font-size:54px;color:#a0a0a8;font-weight:300}
-.vibe-form-field{display:flex;flex-direction:column;gap:6px}
-.vibe-form-field>span,.vibe-form-section-title{font-weight:700;font-size:13px}
-.vibe-form-field input,.vibe-form-field select,.vibe-form-field textarea{width:100%;box-sizing:border-box;border:1px solid #dedee5;border-radius:12px;background:#fff;padding:10px 11px;font:inherit;color:inherit}
-.vibe-form-field textarea{resize:vertical;min-height:110px}
-.vibe-form-row{display:grid;grid-template-columns:.9fr 1.1fr;gap:10px}
-.vibe-form-section{display:flex;flex-direction:column;gap:8px}
-.vibe-chip-group{display:flex;flex-wrap:wrap;gap:7px}
-.vibe-chip{border:1px solid #dedee5;border-radius:999px;background:#fff;color:#5f5f68;padding:7px 10px;font:inherit;font-size:12px}
-.vibe-chip.selected{background:#f3d7e3;border-color:#d85a81;color:#7c2848}
-.vibe-profile-save{width:100%;margin-top:4px}
-.vibe-profile-age-input{color:#2f3036 !important;background:#fff !important;-webkit-text-fill-color:#2f3036 !important}
+/* Profile page */
+.vibe-profile-page {
+  padding-bottom: 24px;
+}
+
+.vibe-profile-cover {
+  height: 82px;
+  margin: -10px -10px 0;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(135deg, #f7e4ec, #efc8d9);
+}
+
+.vibe-profile-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: -34px;
+  padding: 0 8px 12px;
+}
+
+.vibe-profile-avatar-wrap {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  padding: 4px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+}
+
+.vibe-profile-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.vibe-profile-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f1f4;
+  color: #9b9ba3;
+  font-size: 38px;
+}
+
+.vibe-profile-identity {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.vibe-profile-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.vibe-profile-name-row h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.vibe-profile-age {
+  color: #777780;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vibe-profile-meta,
+.vibe-profile-looking {
+  margin-top: 4px;
+  color: #767680;
+  font-size: 12px;
+}
+
+.vibe-profile-edit-button {
+  align-self: start;
+  border: 1px solid #dddde4;
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vibe-profile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 8px;
+}
+
+.vibe-profile-card {
+  background: #fff;
+  border: 1px solid #ededf1;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+}
+
+.vibe-profile-card-title {
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.vibe-profile-about {
+  color: #4e4e57;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.vibe-profile-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.vibe-profile-pill {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f7f3f5;
+  border: 1px solid #eee4e8;
+  color: #66565d;
+  font-size: 11px;
+}
+
+.vibe-profile-facts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.vibe-profile-fact {
+  background: #fafafa;
+  border-radius: 14px;
+  padding: 11px;
+  border: 1px solid #eeeeef;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vibe-profile-fact strong {
+  font-size: 10px;
+  color: #8a8a92;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.vibe-profile-fact span {
+  font-size: 12px;
+  color: #44444d;
+}
+
+.vibe-profile-preview-card {
+  background: #fcf6f9;
+  border-color: #f1dbe5;
+}
+
+.vibe-profile-preview-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: #5d4e55;
+}
+
+.vibe-profile-preview-muted {
+  margin-top: 6px;
+  color: #8a7881;
+}
+
+/* Fix the dark age field on mobile/browser themes. */
+.vibe-profile-age-input {
+  color: #2f2f35 !important;
+  background: #fff !important;
+  -webkit-text-fill-color: #2f2f35 !important;
+  color-scheme: light;
+}
+
+.vibe-form-field input[type="number"] {
+  color: #2f2f35 !important;
+  background-color: #fff !important;
+  -webkit-text-fill-color: #2f2f35 !important;
+}
+

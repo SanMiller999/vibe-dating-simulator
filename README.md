@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.6.3
+# Vibe Dating Simulator — v1.6.2
 
 Vibe is a third-party UI extension for SillyTavern that simulates a dating application. It is a game/prototype, not a real dating service.
 
@@ -62,12 +62,12 @@ Do not replace approved artwork without explicit approval.
 Keep source files in the repository and produce ZIP files only as release artifacts.
 
 
-## Player profile editor — v1.6.3
+## Player profile editor — v1.6.2
 
 Добавлен первый реальный слой профиля игрока: фото, имя, возраст, город, пол, кого ищу, цели знакомств, интересы, профессия, образование и «О себе». Данные сохраняются в настройках расширения. Полный AI-анализ фото, несколько фото, public-vs-true persona и Profile Binding остаются следующими этапами.
 
 
-## Hotfix — v1.6.3
+## Hotfix — v1.6.2
 
 Исправлена критическая ошибка инициализации панели расширения, из-за которой Vibe переставал загружаться целиком:
 - объект `settings` теперь создаётся до обращения к `settings.playerProfile`;
@@ -77,21 +77,10 @@ Keep source files in the repository and produce ZIP files only as release artifa
 Функциональность профиля игрока из v1.6.0 сохранена.
 
 
-## Profile hotfix — v1.6.3
+## Profile goals and profile page — v1.6.2
 
-The profile UI was rebuilt on top of the last known-good v1.6.1 base to avoid regression of extension initialization.
-
-Preserved:
-- extension settings panel;
-- widget;
-- widget movement/size/search;
-- memory settings;
-- chats;
-- notifications;
-- dating tab.
-
-Added safely:
-- «Интим без обязательств» goal;
-- personal profile page after saving;
-- profile editor via «Редактировать»;
-- profile photo, basic information, goals, interests, occupation, education and about text.
+- Added dating goal **«Интим без обязательств»**.
+- Fixed the age field text/background so it remains readable on dark/mobile themes.
+- After saving, the Profile tab now shows a dating-site-style personal profile page instead of immediately returning to the raw form.
+- The profile page includes avatar/photo, identity, age, city, gender, search preferences, about, goals, interests, profession, education and a preview of how the profile can look in dating.
+- Editing remains available through the **«Изменить»** button.
