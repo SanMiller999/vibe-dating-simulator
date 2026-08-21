@@ -77,10 +77,5 @@ Keep source files in the repository and produce ZIP files only as release artifa
 Функциональность профиля игрока из v1.6.0 сохранена.
 
 
-## Profile goals and profile page — v1.6.2
-
-- Added dating goal **«Интим без обязательств»**.
-- Fixed the age field text/background so it remains readable on dark/mobile themes.
-- After saving, the Profile tab now shows a dating-site-style personal profile page instead of immediately returning to the raw form.
-- The profile page includes avatar/photo, identity, age, city, gender, search preferences, about, goals, interests, profession, education and a preview of how the profile can look in dating.
-- Editing remains available through the **«Изменить»** button.
+## Profile UI v1.6.2
+Built strictly from the known-good v1.6.1 base. Added the new dating goal, fixed age field styling, and added a saved profile view/editor without changing widget/settings/chat/notification initialization.

@@ -1002,51 +1002,41 @@ function showNotifications() {
 }
 
 function getPlayerProfile() {
-  return extension_settings[extensionName].playerProfile;
-}
-
-function getPlayerProfile() {
-  return extension_settings[extensionName].playerProfile;
+  const profile = extension_settings[extensionName].playerProfile;
+  profile.lookingFor = Array.isArray(profile.lookingFor) ? profile.lookingFor : [];
+  profile.datingGoals = Array.isArray(profile.datingGoals) ? profile.datingGoals : [];
+  profile.interests = Array.isArray(profile.interests) ? profile.interests : [];
+  profile.photos = Array.isArray(profile.photos) ? profile.photos : [];
+  return profile;
 }
 
 function renderPlayerProfileView(profile) {
-  const hasPhoto = !!profile.photos?.[0];
+  const hasPhoto = Boolean(profile.photos?.[0]);
   const about = profile.about || "Добавьте немного информации о себе.";
-  const goals = profile.datingGoals?.length ? profile.datingGoals : ["Цели пока не указаны"];
-  const interests = profile.interests?.length ? profile.interests : ["Интересы пока не указаны"];
-  const lookingFor = profile.lookingFor?.length ? profile.lookingFor.join(" • ") : "Не указано";
+  const goals = profile.datingGoals.length ? profile.datingGoals : ["Цели пока не указаны"];
+  const interests = profile.interests.length ? profile.interests : ["Интересы пока не указаны"];
+  const lookingFor = profile.lookingFor.length ? profile.lookingFor.join(" • ") : "Не указано";
 
   $("#vibe_content").html(`
     <div class="vibe-profile-page">
       <div class="vibe-profile-cover"></div>
-
       <div class="vibe-profile-hero">
         <div class="vibe-profile-avatar-wrap">
-          ${
-            hasPhoto
-              ? `<img class="vibe-profile-avatar" src="${escapeHtml(profile.photos[0])}" alt="Фото профиля">`
-              : `<div class="vibe-profile-avatar vibe-profile-avatar-placeholder">＋</div>`
-          }
+          ${hasPhoto
+            ? `<img class="vibe-profile-avatar" src="${escapeHtml(profile.photos[0])}" alt="Фото профиля">`
+            : `<div class="vibe-profile-avatar vibe-profile-avatar-placeholder">＋</div>`}
         </div>
 
         <div class="vibe-profile-identity">
           <div class="vibe-profile-name-row">
             <h2>${escapeHtml(profile.name || "Ваш профиль")}</h2>
-            ${
-              profile.age
-                ? `<span class="vibe-profile-age">${escapeHtml(String(profile.age))}</span>`
-                : ""
-            }
+            ${profile.age ? `<span class="vibe-profile-age">${escapeHtml(String(profile.age))}</span>` : ""}
           </div>
-
           <div class="vibe-profile-meta">
             ${profile.city ? `<span>${escapeHtml(profile.city)}</span>` : ""}
             ${profile.gender ? `<span>${escapeHtml(profile.gender)}</span>` : ""}
           </div>
-
-          <div class="vibe-profile-looking">
-            Ищу: ${escapeHtml(lookingFor)}
-          </div>
+          <div class="vibe-profile-looking">Ищу: ${escapeHtml(lookingFor)}</div>
         </div>
 
         <button id="vibe_profile_edit" type="button" class="vibe-profile-edit-button">
@@ -1063,28 +1053,20 @@ function renderPlayerProfileView(profile) {
         <section class="vibe-profile-card">
           <div class="vibe-profile-card-title">Цели знакомств</div>
           <div class="vibe-profile-chip-list">
-            ${goals.map(goal => `<span class="vibe-profile-pill">${escapeHtml(goal)}</span>`).join("")}
+            ${goals.map(x => `<span class="vibe-profile-pill">${escapeHtml(x)}</span>`).join("")}
           </div>
         </section>
 
         <section class="vibe-profile-card">
           <div class="vibe-profile-card-title">Интересы</div>
           <div class="vibe-profile-chip-list">
-            ${interests.map(item => `<span class="vibe-profile-pill">${escapeHtml(item)}</span>`).join("")}
+            ${interests.map(x => `<span class="vibe-profile-pill">${escapeHtml(x)}</span>`).join("")}
           </div>
         </section>
 
         <div class="vibe-profile-facts">
-          ${
-            profile.occupation
-              ? `<div class="vibe-profile-fact"><strong>Профессия</strong><span>${escapeHtml(profile.occupation)}</span></div>`
-              : ""
-          }
-          ${
-            profile.education
-              ? `<div class="vibe-profile-fact"><strong>Образование</strong><span>${escapeHtml(profile.education)}</span></div>`
-              : ""
-          }
+          ${profile.occupation ? `<div class="vibe-profile-fact"><strong>Профессия</strong><span>${escapeHtml(profile.occupation)}</span></div>` : ""}
+          ${profile.education ? `<div class="vibe-profile-fact"><strong>Образование</strong><span>${escapeHtml(profile.education)}</span></div>` : ""}
         </div>
 
         <section class="vibe-profile-card vibe-profile-preview-card">
@@ -1094,11 +1076,9 @@ function renderPlayerProfileView(profile) {
             ${profile.age ? `<span>${escapeHtml(String(profile.age))}</span>` : ""}
             ${profile.city ? `<span>${escapeHtml(profile.city)}</span>` : ""}
           </div>
-          ${
-            profile.interests?.length
-              ? `<div class="vibe-profile-preview-line vibe-profile-preview-muted">${escapeHtml(profile.interests.join(" • "))}</div>`
-              : ""
-          }
+          ${profile.interests.length
+            ? `<div class="vibe-profile-preview-line vibe-profile-preview-muted">${escapeHtml(profile.interests.join(" • "))}</div>`
+            : ""}
         </section>
       </div>
     </div>
@@ -1117,11 +1097,13 @@ function renderPlayerProfileEditor(profile) {
     <div class="vibe-profile-editor">
       <div class="vibe-profile-photo-block">
         <div id="vibe_profile_photo_preview" class="vibe-profile-main-photo">
-          ${profile.photos?.[0] ? `<img src="${escapeHtml(profile.photos[0])}" alt="Фото профиля">` : `<div class="vibe-profile-photo-placeholder">＋</div>`}
+          ${profile.photos[0]
+            ? `<img src="${escapeHtml(profile.photos[0])}" alt="Фото профиля">`
+            : `<div class="vibe-profile-photo-placeholder">＋</div>`}
         </div>
         <input id="vibe_profile_photo_input" type="file" accept="image/*" hidden>
         <button id="vibe_profile_photo_button" type="button" class="menu_button">
-          ${profile.photos?.[0] ? "Заменить фото" : "Добавить фото"}
+          ${profile.photos[0] ? "Заменить фото" : "Добавить фото"}
         </button>
       </div>
 
@@ -1133,7 +1115,9 @@ function renderPlayerProfileEditor(profile) {
       <div class="vibe-form-row">
         <label class="vibe-form-field">
           <span>Возраст</span>
-          <input id="vibe_profile_age" class="vibe-profile-age-input" type="number" min="18" max="99" value="${escapeHtml(profile.age || "")}">
+          <input id="vibe_profile_age" class="vibe-profile-age-input" type="number"
+                 min="18" max="99" inputmode="numeric"
+                 value="${escapeHtml(profile.age || "")}">
         </label>
         <label class="vibe-form-field">
           <span>Город</span>
@@ -1154,21 +1138,21 @@ function renderPlayerProfileEditor(profile) {
       <div class="vibe-form-section">
         <div class="vibe-form-section-title">Кого ищу</div>
         <div class="vibe-chip-group" id="vibe_profile_looking_for">
-          ${lookingForOptions.map(o => `<button type="button" class="vibe-chip ${profile.lookingFor.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+          ${lookingForOptions.map(x => `<button type="button" class="vibe-chip ${profile.lookingFor.includes(x) ? "selected" : ""}" data-value="${escapeHtml(x)}">${escapeHtml(x)}</button>`).join("")}
         </div>
       </div>
 
       <div class="vibe-form-section">
         <div class="vibe-form-section-title">Цели знакомств</div>
         <div class="vibe-chip-group" id="vibe_profile_goals">
-          ${goals.map(o => `<button type="button" class="vibe-chip ${profile.datingGoals.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+          ${goals.map(x => `<button type="button" class="vibe-chip ${profile.datingGoals.includes(x) ? "selected" : ""}" data-value="${escapeHtml(x)}">${escapeHtml(x)}</button>`).join("")}
         </div>
       </div>
 
       <div class="vibe-form-section">
         <div class="vibe-form-section-title">Интересы</div>
         <div class="vibe-chip-group" id="vibe_profile_interests">
-          ${interestOptions.map(o => `<button type="button" class="vibe-chip ${profile.interests.includes(o) ? "selected" : ""}" data-value="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join("")}
+          ${interestOptions.map(x => `<button type="button" class="vibe-chip ${profile.interests.includes(x) ? "selected" : ""}" data-value="${escapeHtml(x)}">${escapeHtml(x)}</button>`).join("")}
         </div>
       </div>
 
@@ -1191,17 +1175,16 @@ function renderPlayerProfileEditor(profile) {
     </div>
   `);
 
-  function toggleMulti(selector, key, value) {
-    profile[key] = profile[key] || [];
-    const idx = profile[key].indexOf(value);
-    if (idx >= 0) profile[key].splice(idx,1);
-    else profile[key].push(value);
+  const toggleMulti=(selector,key,value)=>{
+    profile[key]=Array.isArray(profile[key])?profile[key]:[];
+    const index=profile[key].indexOf(value);
+    if(index>=0) profile[key].splice(index,1); else profile[key].push(value);
     $(selector).filter(`[data-value="${CSS.escape(value)}"]`).toggleClass("selected");
-  }
+  };
 
-  $("#vibe_profile_looking_for .vibe-chip").on("click", function() {
+  $("#vibe_profile_looking_for .vibe-chip").on("click",function(){
     const value=$(this).data("value");
-    if (value==="Не важно") {
+    if(value==="Не важно"){
       profile.lookingFor=["Не важно"];
       $("#vibe_profile_looking_for .vibe-chip").removeClass("selected");
       $(this).addClass("selected");
@@ -1211,19 +1194,17 @@ function renderPlayerProfileEditor(profile) {
     toggleMulti("#vibe_profile_looking_for .vibe-chip","lookingFor",value);
   });
 
-  $("#vibe_profile_goals .vibe-chip").on("click", function() {
+  $("#vibe_profile_goals .vibe-chip").on("click",function(){
     toggleMulti("#vibe_profile_goals .vibe-chip","datingGoals",$(this).data("value"));
   });
 
-  $("#vibe_profile_interests .vibe-chip").on("click", function() {
+  $("#vibe_profile_interests .vibe-chip").on("click",function(){
     toggleMulti("#vibe_profile_interests .vibe-chip","interests",$(this).data("value"));
   });
 
   $("#vibe_profile_photo_button").on("click",()=>$("#vibe_profile_photo_input").trigger("click"));
-
   $("#vibe_profile_photo_input").on("change",function(){
-    const file=this.files?.[0];
-    if(!file)return;
+    const file=this.files?.[0]; if(!file)return;
     const reader=new FileReader();
     reader.onload=()=>{
       profile.photos=[reader.result];
@@ -1251,7 +1232,6 @@ function renderPlayerProfileEditor(profile) {
 function showPlayerProfile() {
   renderPlayerProfileView(getPlayerProfile());
 }
-
 function bindAppEvents() {
   $("#vibe_close").on("click", closeApp);
 
