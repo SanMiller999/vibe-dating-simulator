@@ -1,4 +1,4 @@
-# Vibe Dating Simulator — v1.6.1
+# Vibe Dating Simulator — v1.6.2
 
 Vibe is a third-party UI extension for SillyTavern that simulates a dating application. It is a game/prototype, not a real dating service.
 
@@ -62,12 +62,12 @@ Do not replace approved artwork without explicit approval.
 Keep source files in the repository and produce ZIP files only as release artifacts.
 
 
-## Player profile editor — v1.6.1
+## Player profile editor — v1.6.2
 
 Добавлен первый реальный слой профиля игрока: фото, имя, возраст, город, пол, кого ищу, цели знакомств, интересы, профессия, образование и «О себе». Данные сохраняются в настройках расширения. Полный AI-анализ фото, несколько фото, public-vs-true persona и Profile Binding остаются следующими этапами.
 
 
-## Hotfix — v1.6.1
+## Hotfix — v1.6.2
 
 Исправлена критическая ошибка инициализации панели расширения, из-за которой Vibe переставал загружаться целиком:
 - объект `settings` теперь создаётся до обращения к `settings.playerProfile`;
@@ -75,3 +75,21 @@ Keep source files in the repository and produce ZIP files only as release artifa
 - миграция `activityNotifications` нормализована в массив.
 
 Функциональность профиля игрока из v1.6.0 сохранена.
+
+
+## Profile page polish — v1.6.2
+
+- Added the dating goal **«Интим без обязательств»**.
+- Fixed the age field color so the typed value remains readable.
+- After saving, the Profile tab now becomes a personal dating-site style page with:
+  - large avatar/main photo;
+  - name and age;
+  - city/gender metadata;
+  - about section;
+  - dating goals;
+  - interests;
+  - search preference;
+  - occupation/education;
+  - profile status;
+  - Edit Profile button.
+- The editor remains available through **Редактировать**.

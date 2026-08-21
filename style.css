@@ -899,3 +899,179 @@
 .vibe-chip{border:1px solid #dedee5;border-radius:999px;background:#fff;color:#5f5f68;padding:7px 10px;font:inherit;font-size:12px}
 .vibe-chip.selected{background:#f3d7e3;border-color:#d85a81;color:#7c2848}
 .vibe-profile-save{width:100%;margin-top:4px}
+
+/* Profile page */
+.vibe-profile-page {
+  padding-bottom: 26px;
+}
+
+.vibe-profile-cover {
+  height: 86px;
+  margin: -10px -10px 0;
+  background: linear-gradient(135deg, #f7dbe7 0%, #f5eef3 100%);
+  border-radius: 0 0 22px 22px;
+}
+
+.vibe-profile-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: -42px;
+  padding: 0 12px;
+}
+
+.vibe-profile-avatar-large {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #f2f2f5;
+  border: 4px solid #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+
+.vibe-profile-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vibe-profile-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a0a0a8;
+  font-size: 42px;
+}
+
+.vibe-profile-hero-info {
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.vibe-profile-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vibe-profile-name-row h1 {
+  margin: 0;
+  font-size: 23px;
+  line-height: 1.1;
+}
+
+.vibe-profile-age {
+  font-size: 16px;
+  color: #66666f;
+}
+
+.vibe-profile-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #777780;
+}
+
+.vibe-profile-actions {
+  padding: 12px;
+}
+
+.vibe-profile-edit-button {
+  width: 100%;
+}
+
+.vibe-profile-card {
+  margin: 0 0 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #ededf1;
+  box-shadow: 0 2px 10px rgba(0,0,0,.035);
+}
+
+.vibe-profile-card-title {
+  font-size: 13px;
+  font-weight: 750;
+  margin-bottom: 7px;
+}
+
+.vibe-profile-about,
+.vibe-profile-goals,
+.vibe-profile-status-text {
+  color: #64646c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.vibe-profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.vibe-profile-tag {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f8eef3;
+  color: #7b3652;
+  font-size: 11px;
+}
+
+.vibe-profile-info-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+.vibe-profile-info-row + .vibe-profile-info-row {
+  border-top: 1px solid #f0f0f3;
+}
+
+.vibe-profile-info-row span {
+  color: #85858d;
+  font-size: 12px;
+}
+
+.vibe-profile-info-row strong {
+  font-size: 12px;
+  text-align: right;
+}
+
+.vibe-profile-profile-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vibe-profile-status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: #67b77f;
+  box-shadow: 0 0 0 4px rgba(103,183,127,.12);
+}
+
+.vibe-profile-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vibe-profile-age-input {
+  color: #2f3036 !important;
+  background: #fff !important;
+  -webkit-text-fill-color: #2f3036 !important;
+}
+
+.vibe-profile-age-input::-webkit-inner-spin-button,
+.vibe-profile-age-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
