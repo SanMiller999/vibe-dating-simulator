@@ -1,6 +1,9 @@
-1.22.3
+# v1.22.20-phase10
 
-# Vibe Dating Simulator — v1.22.5
+- Добавлен архитектурный аудит проекта без изменения runtime-логики.
+- Зафиксированы границы будущего безопасного разделения index.js на модули.
+
+# Vibe Dating Simulator — v1.22.20
 
 
 
@@ -194,6 +197,26 @@ The 1.16.0 maintenance pass also makes memory toggles authoritative in the gener
 
 
 
+
+## v1.22.10
+- Added polished chat message actions: delete for both sides, regenerate NPC replies, edit user messages
+
+## v1.22.9 — profile cleanup
+
+- Removed obsolete CSS for the deleted profile discovery preview card.
+- Synchronized the shipped release version with the current project state.
+
+## v1.22.7 — runtime regression maintenance
+
+- Fixed the normal dating feed not invoking the dynamic NPC replenishment path.
+- Dynamic NPCs are now ensured before each feed render, so the dating pool can continue beyond the built-in profiles.
+
+## v1.22.6 — audit/regression maintenance
+
+- Synced the shipped extension version across the manifest and project documentation.
+- Removed an unused legacy chat-action implementation that referenced the missing `generateChatReply()` function.
+- Kept the existing persistent chat/regeneration implementation as the single active path.
+- Updated project-status documentation so implemented NPC/profile/memory/simulation systems are no longer described as merely planned.
 
 ## v1.22.5
 - Compact hover chat actions (delete/regenerate)

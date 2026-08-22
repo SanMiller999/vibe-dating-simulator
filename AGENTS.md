@@ -750,36 +750,29 @@ Messages are not activity notifications.
 
 Important:
 
-The project currently has a working UI/prototype foundation, including:
+The project is beyond the original UI/prototype stage. The following are implemented and should be treated as existing production/test paths rather than plans:
 
-- floating widget;
-- widget movement;
-- widget settings;
-- collapsible widget settings;
-- collapsible memory settings;
-- bottom navigation;
-- dating tab;
-- chats;
-- notifications;
-- profile placeholder;
-- unread interaction counters;
-- widget state artwork;
-- notification/activity foundation.
+- floating widget, movement, resizing, persistence and artwork states;
+- dating feed, like/dislike, matches and activity notifications;
+- player profile editing and photo upload;
+- persistent actor-based chats and unread message state;
+- dynamic NPC generation, archetypes, behavioural traits and role state;
+- bounded player/NPC relationship memory and long-term heuristic memory;
+- revelation/deception scaffolding and date simulation;
+- autonomous NPC events and event-driven NPC↔NPC relationships;
+- Context Builder and SillyTavern `getContext().generateRaw()` generation;
+- per-message regeneration through the current NPC reply path;
+- developer diagnostics and reset/test controls.
 
-The following are **architectural plans and not fully implemented**:
+The following remain intentionally limited or planned:
 
-- full Player Profile editor;
-- photo upload pipeline;
-- Vision AI;
-- Profile Binding;
-- Memory Core;
-- Relationship Memory Bridge;
-- World Awareness;
-- true SillyTavern Persona synchronization;
-- production AI Context Builder;
-- autonomous NPC simulation.
+- real Vision AI analysis of profile photos;
+- semantic/embedding-based memory and vector retrieval;
+- a full Vibe↔Roleplay Relationship Memory Bridge;
+- richer World Awareness, time/location simulation and a true persistent background simulation clock;
+- production-grade knowledge isolation and deeper context retrieval.
 
-Codex must distinguish "planned" from "implemented".
+Codex must distinguish "planned" from "implemented" and should prefer the current code and README release notes when older architectural notes conflict with shipped behaviour.
 
 ---
 

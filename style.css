@@ -923,9 +923,6 @@
 .vibe-profile-fact{background:#fafafa;border-radius:14px;padding:11px;border:1px solid #eeeeef;display:flex;flex-direction:column;gap:4px}
 .vibe-profile-fact strong{font-size:10px;color:#8a8a92;text-transform:uppercase;letter-spacing:.04em}
 .vibe-profile-fact span{font-size:12px;color:#44444d}
-.vibe-profile-preview-card{background:#fcf6f9;border-color:#f1dbe5}
-.vibe-profile-preview-line{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:#5d4e55}
-.vibe-profile-preview-muted{margin-top:6px;color:#8a7881}
 .vibe-profile-editor{display:flex;flex-direction:column;gap:14px;padding-bottom:24px}
 .vibe-profile-photo-block{display:flex;flex-direction:column;align-items:center;gap:8px}
 .vibe-profile-main-photo{width:min(72vw,260px);aspect-ratio:1/1;border-radius:20px;overflow:hidden;background:#f1f1f4;display:flex;align-items:center;justify-content:center}
@@ -1153,10 +1150,24 @@
 .vibe-date-actions .menu_button{flex:1 1 180px;}
 
 
-.vibe-msg-actions{display:flex;gap:6px;opacity:0;transition:.18s}
-.vibe-message:hover .vibe-msg-actions,
-.vibe-message:focus-within .vibe-msg-actions{opacity:1}
-.vibe-msg-btn{width:24px;height:24px;border-radius:999px;border:none;background:rgba(255,255,255,.08);backdrop-filter:blur(10px);display:grid;place-items:center}
-.vibe-msg-btn:hover{transform:scale(1.05)}
-.vibe-profile-preview,.vibe-discovery-preview{display:none!important}
+.vibe-msg-actions{display:flex;align-items:center;gap:3px;opacity:0;visibility:hidden;transform:translateY(2px);transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+.vibe-message-row:hover .vibe-msg-actions,
+.vibe-message-row:focus-within .vibe-msg-actions{opacity:1;visibility:visible;transform:translateY(0)}
+.vibe-msg-btn{width:24px;height:24px;border-radius:999px;border:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.72);color:#6f7078;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:grid;place-items:center;padding:0;font-size:13px;line-height:1;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.05)}
+.vibe-msg-btn:hover,.vibe-msg-btn:focus-visible{transform:translateY(-1px);color:#2e2e35;background:#fff;border-color:rgba(0,0,0,.1);outline:none}
+.vibe-message-delete:hover,.vibe-message-delete:focus-visible{color:#a55353;border-color:rgba(165,83,83,.22);background:#fffafa}
+.vibe-message-editing{min-width:220px;max-width:min(86%,420px)!important;padding:10px 11px!important}
+.vibe-message-editor{display:block;width:100%;min-height:54px;resize:vertical;border:1px solid rgba(0,0,0,.1);border-radius:10px;background:#fff;color:#24242a;padding:8px 9px;font:inherit;line-height:1.4;box-sizing:border-box;outline:none}
+.vibe-message-editor:focus{border-color:rgba(110,110,120,.45);box-shadow:0 0 0 3px rgba(120,120,130,.08)}
+.vibe-message-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+.vibe-message-edit-actions button{border:0;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
+.vibe-message-edit-cancel{background:#f0f0f2;color:#666770}
+.vibe-message-edit-save{background:#24242a;color:#fff}
+.vibe-message-meta{display:inline-block;margin-left:7px;font-size:9px;color:#9a9aa3;vertical-align:baseline}
 .vibe-chat-input,.vibeInputBar,[data-vibe-input]{position:sticky!important;bottom:0;z-index:40}
+@media (max-width: 680px){
+  .vibe-msg-actions{opacity:1;visibility:visible;transform:none}
+  .vibe-message-row{gap:3px}
+  .vibe-msg-btn{width:23px;height:23px;font-size:12px}
+  .vibe-message-editing{min-width:0;max-width:88%!important}
+}

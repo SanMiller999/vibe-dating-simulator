@@ -2,6 +2,7 @@ import { extension_settings } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 
 const extensionName = "vibe-dating-simulator";
+const STATE_SCHEMA_VERSION = 1;
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const widgetIconPath = `${extensionFolderPath}/assets/vibe-widget-icon.png`;
 const widgetActiveIconPath = `${extensionFolderPath}/assets/vibe-widget-active-1.png`;
@@ -84,14 +85,18 @@ const profiles = [
 ];
 
 const state = {
+  stateSchemaVersion: STATE_SCHEMA_VERSION,
   currentIndex: 0,
   liked: [],
   skipped: [],
+  datingArchive: {},
   chats: {},
   unreadInteractions: {},
   activityNotifications: [],
   dynamicProfiles: {},
   npcMemories: {},
+  playerMemories: {},
+  conversationMemories: {},
   relationshipMemory: {},
   generatingChats: {},
   npcEventCooldowns: {},
@@ -99,26 +104,204 @@ const state = {
   npcRoleStates: {},
   npcRelationships: {},
   npcSocialEventCooldownUntil: 0,
+  npcSocialPairCooldowns: {},
   activeDate: null,
   dateStates: {},
+  eventLog: [],
+  lastStateAuditReport: null,
 };
+
+function appendEventLog(type, payload = {}) {
+  state.eventLog ||= [];
+  state.eventLog.push({
+    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    payload,
+    timestamp: Date.now()
+  });
+  if (state.eventLog.length > 500) state.eventLog.splice(0, state.eventLog.length - 500);
+}
+
+function migrateState() {
+  const version = Number(state.stateSchemaVersion) || 1;
+
+  // Migration pipeline. Keep migrations explicit so future schema changes
+  // transform old saves instead of only bumping the version number.
+  if (version < 2) {
+    state.npcRelationships ||= {};
+    state.npcMemories ||= {};
+  }
+
+  if (version < STATE_SCHEMA_VERSION) {
+    state.stateSchemaVersion = STATE_SCHEMA_VERSION;
+  }
+}
+
+function repairStateIntegrity() {
+  const issues = [];
+  const repairs = [];
+
+  const knownProfiles = new Set([
+    ...profiles.map(profile => profile.id),
+    ...Object.keys(state.dynamicProfiles || {}),
+  ]);
+
+  Object.keys(state.chats || {}).forEach(id => {
+    if (!knownProfiles.has(id)) {
+      issues.push(`orphan chat: ${id}`);
+      if (!state.chats[id]?.messages?.length) {
+        delete state.chats[id];
+        repairs.push(`removed empty orphan chat: ${id}`);
+      }
+    }
+  });
+
+  Object.keys(state.npcMemories || {}).forEach(id => {
+    if (!knownProfiles.has(id)) {
+      issues.push(`orphan memory: ${id}`);
+      delete state.npcMemories[id];
+      repairs.push(`removed orphan memory: ${id}`);
+    }
+  });
+
+  Object.entries(state.npcRelationships || {}).forEach(([id, relationship]) => {
+    const participants = Array.isArray(relationship?.participants)
+      ? relationship.participants
+      : String(id).split("::");
+    const orphanParticipants = participants.filter(participant => !knownProfiles.has(participant));
+    if (orphanParticipants.length) {
+      issues.push(`orphan relationship: ${id} (${orphanParticipants.join(", ")})`);
+      delete state.npcRelationships[id];
+      repairs.push(`removed orphan relationship: ${id}`);
+    }
+  });
+
+  Object.keys(state.unreadInteractions || {}).forEach(id => {
+    if (!knownProfiles.has(id)) {
+      issues.push(`orphan interaction: ${id}`);
+      delete state.unreadInteractions[id];
+      repairs.push(`removed orphan interaction: ${id}`);
+    }
+  });
+
+  if (issues.length || repairs.length) {
+    appendEventLog("state_integrity_repair", { issues, repairs });
+  }
+
+  return issues;
+}
+
+function validateState() {
+  const issues = [];
+
+  if (!Number.isInteger(state.stateSchemaVersion)) {
+    issues.push("missing state schema version");
+  }
+  if (!state.chats || typeof state.chats !== "object") {
+    issues.push("invalid chats storage");
+    state.chats = {};
+  }
+  if (!Array.isArray(state.liked)) {
+    issues.push("invalid liked list");
+    state.liked = [];
+  }
+  if (!Array.isArray(state.skipped)) {
+    issues.push("invalid skipped list");
+    state.skipped = [];
+  }
+  if (!state.npcRelationships || typeof state.npcRelationships !== "object" || Array.isArray(state.npcRelationships)) {
+    issues.push("invalid npc relationships");
+    state.npcRelationships = {};
+  }
+  if (!state.dynamicProfiles || typeof state.dynamicProfiles !== "object" || Array.isArray(state.dynamicProfiles)) {
+    issues.push("invalid dynamic profiles");
+    state.dynamicProfiles = {};
+  }
+  if (!state.npcMemories || typeof state.npcMemories !== "object" || Array.isArray(state.npcMemories)) {
+    issues.push("invalid npc memories");
+    state.npcMemories = {};
+  }
+  if (!state.dateStates || typeof state.dateStates !== "object" || Array.isArray(state.dateStates)) {
+    issues.push("invalid date states");
+    state.dateStates = {};
+  }
+  if (state.activeDate !== null && (typeof state.activeDate !== "object" || Array.isArray(state.activeDate))) {
+    issues.push("invalid active date");
+    state.activeDate = null;
+  }
+  if (!Array.isArray(state.eventLog)) {
+    issues.push("invalid event log");
+    state.eventLog = [];
+  }
+
+  return issues;
+}
+
+
+function buildStateAuditReport() {
+  const validationIssues = validateState();
+  const integrityIssues = repairStateIntegrity();
+
+  const report = {
+    timestamp: Date.now(),
+    schemaVersion: state.stateSchemaVersion,
+    validationIssues,
+    integrityIssues,
+    summary: {
+      totalIssues: validationIssues.length + integrityIssues.length,
+      valid: validationIssues.length === 0 && integrityIssues.length === 0,
+    },
+  };
+
+  state.lastStateAuditReport = report;
+  return report;
+}
+
+function runStateAudit() {
+  const report = buildStateAuditReport();
+  appendEventLog("state_audit_run", {
+    totalIssues: report.summary.totalIssues,
+    valid: report.summary.valid,
+  });
+  return report;
+}
+
+function exportStateAuditReport() {
+  const report = state.lastStateAuditReport || runStateAudit();
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `vibe-state-audit-${Date.now()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return report;
+}
 
 function saveChatState() {
   extension_settings[extensionName].chatState = {
+    stateSchemaVersion: STATE_SCHEMA_VERSION,
     chats: state.chats,
     liked: state.liked,
     skipped: state.skipped,
+    datingArchive: state.datingArchive,
     unreadInteractions: state.unreadInteractions,
     activityNotifications: state.activityNotifications,
     dynamicProfiles: state.dynamicProfiles,
     npcMemories: state.npcMemories,
+    playerMemories: state.playerMemories,
+    conversationMemories: state.conversationMemories,
     relationshipMemory: state.relationshipMemory,
     npcEventCooldowns: state.npcEventCooldowns,
     npcRoleStates: state.npcRoleStates,
     npcRelationships: state.npcRelationships,
     npcSocialEventCooldownUntil: state.npcSocialEventCooldownUntil,
+    npcSocialPairCooldowns: state.npcSocialPairCooldowns,
     dateStates: state.dateStates,
     activeDate: state.activeDate,
+    eventLog: state.eventLog,
   };
   saveSettingsDebounced();
 }
@@ -130,6 +313,9 @@ function loadChatState() {
   state.chats = saved.chats && typeof saved.chats === "object" ? saved.chats : {};
   state.liked = Array.isArray(saved.liked) ? saved.liked : [];
   state.skipped = Array.isArray(saved.skipped) ? saved.skipped : [];
+  state.datingArchive = saved.datingArchive && typeof saved.datingArchive === "object"
+    ? saved.datingArchive
+    : {};
   state.unreadInteractions = saved.unreadInteractions && typeof saved.unreadInteractions === "object"
     ? saved.unreadInteractions
     : {};
@@ -141,6 +327,12 @@ function loadChatState() {
     : {};
   state.npcMemories = saved.npcMemories && typeof saved.npcMemories === "object"
     ? saved.npcMemories
+    : {};
+  state.playerMemories = saved.playerMemories && typeof saved.playerMemories === "object"
+    ? saved.playerMemories
+    : {};
+  state.conversationMemories = saved.conversationMemories && typeof saved.conversationMemories === "object"
+    ? saved.conversationMemories
     : {};
   state.relationshipMemory = saved.relationshipMemory && typeof saved.relationshipMemory === "object"
     ? saved.relationshipMemory
@@ -155,12 +347,37 @@ function loadChatState() {
     ? saved.npcRelationships
     : {};
   state.npcSocialEventCooldownUntil = Number(saved.npcSocialEventCooldownUntil) || 0;
+  state.npcSocialPairCooldowns = saved.npcSocialPairCooldowns && typeof saved.npcSocialPairCooldowns === "object" ? saved.npcSocialPairCooldowns : {};
   state.dateStates = saved.dateStates && typeof saved.dateStates === "object"
     ? saved.dateStates
     : {};
   state.activeDate = saved.activeDate && typeof saved.activeDate === "object"
     ? saved.activeDate
     : null;
+  state.eventLog = Array.isArray(saved.eventLog) ? saved.eventLog : [];
+  state.stateSchemaVersion = Number(saved.stateSchemaVersion) || STATE_SCHEMA_VERSION;
+
+  migrateState();
+
+  const validationIssues = validateState();
+  const integrityIssues = repairStateIntegrity();
+  if (validationIssues.length) {
+    appendEventLog("state_validation", { issues: validationIssues });
+  }
+  if (validationIssues.length || integrityIssues.length) {
+    saveChatState();
+  }
+
+  const legacyProfiles = Object.keys(state.npcMemories).filter(profileId => {
+    const legacy = state.npcMemories[profileId];
+    return legacy && typeof legacy === "object";
+  });
+  legacyProfiles.forEach(profileId => migrateLegacyMemory(profileId));
+  legacyProfiles.forEach(profileId => {
+    const hasHistory = Array.isArray(state.chats?.[profileId]?.messages) && state.chats[profileId].messages.length > 0;
+    if (hasHistory) rebuildChatDerivedState(profileId, { persist: false });
+  });
+  if (legacyProfiles.length) saveChatState();
 }
 
 function ensureSettings() {
@@ -946,10 +1163,15 @@ function createRandomNpcProfile(archetypeId = "kindred_spirit", seed = Date.now(
   const usedNames = new Set(getAllProfiles().map(p => p?.name).filter(Boolean));
   const availableNames = namePool.filter(name => !usedNames.has(name));
   const firstName = (availableNames.length ? availableNames : namePool)[Math.floor(rng() * (availableNames.length || namePool.length))];
-  const id = `npc_${Date.now()}_${Math.floor(rng() * 1e9)}`;
+  let id = `npc_${Date.now()}_${Math.floor(rng() * 1e9)}`;
+  // Ensure a generated profile never overwrites an existing saved NPC.
+  while (state.dynamicProfiles && state.dynamicProfiles[id]) {
+    id = `npc_${Date.now()}_${Math.floor(rng() * 1e9)}`;
+  }
 
   const profile = {
     id,
+    createdAt: Date.now(),
     name: firstName,
     age: 21 + Math.floor(rng() * 24),
     city: ["Москва", "Санкт-Петербург", "Казань", "Екатеринбург", "Новосибирск"][Math.floor(rng() * 5)],
@@ -1066,12 +1288,14 @@ function ensureChat(id) {
 function addIncomingMessage(id, text, options = {}) {
   const chat = ensureChat(id);
 
+  const incomingMessageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   chat.messages.push({
-    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: incomingMessageId,
     from: "them",
     text,
     timestamp: Date.now()
   });
+  appendEventLog("MESSAGE_SENT", { profileId: id, messageId: incomingMessageId, from: "them" });
   if (options.updateRelationship !== false) {
     updateRelationshipMemory(id, { from: "them", text });
     rememberNpcMessage(id, { from: "them", text, timestamp: Date.now() });
@@ -1164,6 +1388,8 @@ function resetDemoState() {
   state.activityNotifications = [];
   state.dynamicProfiles = {};
   state.npcMemories = {};
+  state.playerMemories = {};
+  state.conversationMemories = {};
   state.relationshipMemory = {};
   state.generatingChats = {};
   state.npcEventCooldowns = {};
@@ -1324,8 +1550,8 @@ function escapeHtml(value) {
 
 
 
-function getNpcMemory(profileId) {
-  state.npcMemories[profileId] ||= {
+function createMemoryBucket(overrides = {}) {
+  return {
     summary: "",
     facts: [],
     topics: [],
@@ -1333,14 +1559,62 @@ function getNpcMemory(profileId) {
     emotionalNotes: [],
     lastMessageAt: 0,
     lastUpdated: 0,
+    ...overrides,
   };
+}
 
-  const memory = state.npcMemories[profileId];
-  if (!Array.isArray(memory.facts)) memory.facts = [];
-  if (!Array.isArray(memory.topics)) memory.topics = [];
-  if (!Array.isArray(memory.preferences)) memory.preferences = [];
-  if (!Array.isArray(memory.emotionalNotes)) memory.emotionalNotes = [];
+function normalizeMemoryBucket(memory, { includeFacts = true, includePreferences = true } = {}) {
+  const target = memory || createMemoryBucket();
+  if (!Array.isArray(target.facts)) target.facts = includeFacts ? [] : undefined;
+  if (!Array.isArray(target.topics)) target.topics = [];
+  if (!Array.isArray(target.preferences)) target.preferences = includePreferences ? [] : undefined;
+  if (!Array.isArray(target.emotionalNotes)) target.emotionalNotes = [];
+  return target;
+}
+
+function getNpcMemory(profileId) {
+  state.npcMemories[profileId] ||= createMemoryBucket({ discovered: [] });
+  const memory = normalizeMemoryBucket(state.npcMemories[profileId]);
+  if (!Array.isArray(memory.discovered)) memory.discovered = [];
   return memory;
+}
+
+function getPlayerMemory(profileId) {
+  state.playerMemories[profileId] ||= createMemoryBucket();
+  return normalizeMemoryBucket(state.playerMemories[profileId]);
+}
+
+function getConversationMemory(profileId) {
+  state.conversationMemories[profileId] ||= createMemoryBucket();
+  return normalizeMemoryBucket(state.conversationMemories[profileId]);
+}
+
+function updateMemorySummary(memory, { includePreferences = true, touchTimestamp = true } = {}) {
+  memory.summary = [
+    memory.topics?.length ? `Темы: ${memory.topics.join(", ")}.` : "",
+    includePreferences && memory.preferences?.length ? `Предпочтения: ${memory.preferences.slice(-4).join(" | ")}` : "",
+    memory.emotionalNotes?.length ? `Эмоциональные заметки: ${memory.emotionalNotes.slice(-2).join(" | ")}` : "",
+  ].filter(Boolean).join(" ");
+  if (touchTimestamp) memory.lastUpdated = Date.now();
+  return memory;
+}
+
+function migrateLegacyMemory(profileId) {
+  const legacy = state.npcMemories?.[profileId];
+  if (!legacy) return;
+
+  // Preserve old derived memory while normalizing the new structure.
+  // Rebuilding from history can enrich it later, but should not destroy user data.
+  state.npcMemories[profileId] = createMemoryBucket({
+    facts: Array.isArray(legacy.facts) ? [...legacy.facts] : [],
+    topics: Array.isArray(legacy.topics) ? [...legacy.topics] : [],
+    preferences: Array.isArray(legacy.preferences) ? [...legacy.preferences] : [],
+    emotionalNotes: Array.isArray(legacy.emotionalNotes) ? [...legacy.emotionalNotes] : [],
+    discovered: Array.isArray(legacy.discovered) ? [...legacy.discovered] : [],
+    lastMessageAt: Number(legacy.lastMessageAt) || 0,
+    lastUpdated: Number(legacy.lastUpdated) || 0,
+  });
+
 }
 
 const NPC_RELATIONSHIP_TYPES = new Set([
@@ -1469,12 +1743,30 @@ function getNpcSocialPairCandidates() {
       const baseScore = overlap * 2 + sameCity + sharedGoal;
       if (baseScore <= 0) continue;
       if (relationship?.interactionCount >= 3) continue;
+      if (!canRunNpcSocialPair(first.id, second.id)) continue;
 
       pairs.push({ first, second, relationship, score: baseScore + Math.random() * 1.5 });
     }
   }
 
   return pairs.sort((a, b) => b.score - a.score);
+}
+
+function getNpcSocialPairKey(firstId, secondId) {
+  return getNpcRelationshipKey(firstId, secondId);
+}
+
+function canRunNpcSocialPair(firstId, secondId) {
+  const key = getNpcSocialPairKey(firstId, secondId);
+  if (!key) return false;
+  return Date.now() >= Number(state.npcSocialPairCooldowns?.[key] || 0);
+}
+
+function setNpcSocialPairCooldown(firstId, secondId, delayMs) {
+  const key = getNpcSocialPairKey(firstId, secondId);
+  if (!key) return;
+  state.npcSocialPairCooldowns ||= {};
+  state.npcSocialPairCooldowns[key] = Date.now() + delayMs;
 }
 
 function runNpcSocialEvent({ force = false } = {}) {
@@ -1496,6 +1788,13 @@ function runNpcSocialEvent({ force = false } = {}) {
     ? `${first.name} увидел(а) профиль ${second.name} в Vibe${commonInterest ? ` и заметил(а) общий интерес: ${commonInterest}` : sameCity ? ` — они из одного города: ${first.city}` : ""}.`
     : `${first.name} и ${second.name} снова пересеклись в Vibe${commonInterest ? ` вокруг темы «${commonInterest}»` : "."}`;
 
+  const scene = {
+    speaker: first.name,
+    listener: second.name,
+    topic: commonInterest || (sameCity ? `город ${first.city}` : "новое знакомство"),
+    tone: isNew ? "curious" : "friendly",
+  };
+
   const result = recordNpcRelationshipEvent(first.id, second.id, {
     eventType: isNew ? "profile_discovery" : "repeat_contact",
     type: relationship?.interactionCount >= 2 ? "friend" : null,
@@ -1508,10 +1807,13 @@ function runNpcSocialEvent({ force = false } = {}) {
       commonInterest,
       sameCity: !!sameCity,
       createdBy: isNew ? "profile_discovery" : "repeat_contact",
+      scene,
     },
   });
 
-  state.npcSocialEventCooldownUntil = now + (force ? 10_000 : 30 * 60_000 + Math.floor(Math.random() * 30 * 60_000));
+  const pairCooldown = force ? 10_000 : 2 * 60 * 60_000 + Math.floor(Math.random() * 2 * 60 * 60_000);
+  setNpcSocialPairCooldown(first.id, second.id, pairCooldown);
+  state.npcSocialEventCooldownUntil = now + (force ? 10_000 : 10 * 60_000);
   saveChatState();
   return result;
 }
@@ -1592,9 +1894,10 @@ function detectMemorySignals(text = "") {
   return { topics, preferences, emotional };
 }
 
-function rememberPlayerMessage(profileId, message) {
+function rememberPlayerMessage(profileId, message, { touchTimestamp = true } = {}) {
   if (!message || message.from !== "me") return;
-  const memory = getNpcMemory(profileId);
+  const memory = getPlayerMemory(profileId);
+  const conversation = getConversationMemory(profileId);
   const text = String(message.text || "").replace(/\s+/g, " ").trim();
   if (!text) return;
 
@@ -1605,41 +1908,45 @@ function rememberPlayerMessage(profileId, message) {
   memory.preferences = [...new Set([...(memory.preferences || []), ...signals.preferences])].slice(-20);
   memory.emotionalNotes = [...new Set([...(memory.emotionalNotes || []), ...signals.emotional])].slice(-12);
   memory.lastMessageAt = Number(message.timestamp) || Date.now();
-  memory.summary = [
-    memory.topics.length ? `Темы: ${memory.topics.join(", ")}.` : "",
-    memory.preferences.length ? `Предпочтения: ${memory.preferences.slice(-4).join(" | ")}` : "",
-    memory.emotionalNotes.length ? `Эмоциональные заметки: ${memory.emotionalNotes.slice(-2).join(" | ")}` : "",
-  ].filter(Boolean).join(" ");
-  memory.lastUpdated = Date.now();
+  updateMemorySummary(memory, { includePreferences: true, touchTimestamp });
+
+  conversation.topics = [...new Set([...(conversation.topics || []), ...signals.topics])].slice(-20);
+  conversation.lastMessageAt = memory.lastMessageAt;
+  updateMemorySummary(conversation, { includePreferences: false, touchTimestamp });
 }
 
-
-function rememberNpcMessage(profileId, message) {
+function rememberNpcMessage(profileId, message, { touchTimestamp = true } = {}) {
   if (!message || message.from !== "them") return;
   const memory = getNpcMemory(profileId);
+  const conversation = getConversationMemory(profileId);
   const text = String(message.text || "").replace(/\s+/g, " ").trim();
   if (!text) return;
+
   const signals = detectMemorySignals(text);
   memory.topics = [...new Set([...(memory.topics || []), ...signals.topics])].slice(-20);
   memory.emotionalNotes = [...new Set([...(memory.emotionalNotes || []), ...signals.emotional])].slice(-12);
   memory.lastMessageAt = Number(message.timestamp) || Date.now();
-  memory.summary = [
-    memory.topics.length ? `Темы: ${memory.topics.join(", ")}.` : "",
-    memory.preferences.length ? `Предпочтения игрока: ${memory.preferences.slice(-4).join(" | ")}` : "",
-    memory.emotionalNotes.length ? `Эмоциональные заметки: ${memory.emotionalNotes.slice(-2).join(" | ")}` : "",
-  ].filter(Boolean).join(" ");
-  memory.lastUpdated = Date.now();
+  updateMemorySummary(memory, { includePreferences: false, touchTimestamp });
+
+  conversation.topics = [...new Set([...(conversation.topics || []), ...signals.topics])].slice(-20);
+  conversation.emotionalNotes = [...new Set([...(conversation.emotionalNotes || []), ...signals.emotional])].slice(-12);
+  conversation.lastMessageAt = memory.lastMessageAt;
+  updateMemorySummary(conversation, { includePreferences: false, touchTimestamp });
 }
 
-function updateRelationshipMemory(profileId, { from = "me", text = "", messageId = null } = {}) {
+function updateRelationshipMemory(
+  profileId,
+  { from = "me", text = "", messageId = null, timestamp = null, persist = true, advanceRevelation = true } = {},
+) {
   const relationship = getRelationshipMemory(profileId);
   const profile = getProfileById(profileId);
   const roleState = profile ? ensureNpcRoleState(profile) : null;
   const normalized = String(text).toLowerCase();
+  const interactionAt = Number(timestamp) || Date.now();
   relationship.interactionCount += 1;
-  if (from === "me" && roleState) roleState.lastPlayerMessageAt = Date.now();
+  if (from === "me" && roleState) roleState.lastPlayerMessageAt = interactionAt;
   relationship.lastInteractionFrom = from;
-  relationship.lastInteractionAt = Date.now();
+  relationship.lastInteractionAt = interactionAt;
   relationship.familiarity = clamp(relationship.familiarity + 0.025, 0, 1);
 
   let deltaTrust = from === "me" ? 0.012 : 0.004;
@@ -1687,15 +1994,20 @@ function updateRelationshipMemory(profileId, { from = "me", text = "", messageId
   relationship.attraction = clamp(relationship.attraction + deltaAttraction, -1, 1);
   relationship.sentiment = clamp(relationship.sentiment + deltaSentiment, -1, 1);
   relationship.summary = `Знакомство: ${relationship.interactionCount} взаимодействий; доверие ${relationship.trust.toFixed(2)}, симпатия ${relationship.attraction.toFixed(2)}, близость ${relationship.familiarity.toFixed(2)}, настроение ${relationship.sentiment.toFixed(2)}.`;
-  relationship.updatedAt = Date.now();
+  relationship.updatedAt = interactionAt;
 
-  advanceRevelationState(profileId, { relationship, messageId });
-  saveChatState();
+  if (advanceRevelation) advanceRevelationState(profileId, { relationship, messageId });
+  if (persist) saveChatState();
   return relationship;
 }
 
-function getRelationshipStage(profileId) {
-  const relationship = getRelationshipMemory(profileId);
+function getRelationshipStage(profileId, { readOnly = false } = {}) {
+  const relationship = readOnly
+    ? (state.relationshipMemory?.[profileId] || {
+      trust: 0, attraction: 0, familiarity: 0, sentiment: 0,
+      interactionCount: 0,
+    })
+    : getRelationshipMemory(profileId);
   const score = relationship.familiarity * 0.45
     + Math.max(0, relationship.trust) * 0.25
     + Math.max(0, relationship.attraction) * 0.2
@@ -1708,7 +2020,7 @@ function getRelationshipStage(profileId) {
   return "intimate";
 }
 
-function reconcileNpcRoleState(profileId) {
+function reconcileNpcRoleState(profileId, { applyIdleDecay = true } = {}) {
   const profile = getProfileById(profileId);
   if (!profile) return null;
   const relationship = getRelationshipMemory(profileId);
@@ -1717,7 +2029,7 @@ function reconcileNpcRoleState(profileId) {
   const lastInteraction = Math.max(Number(relationship.lastInteractionAt) || 0, Number(roleState.lastPlayerMessageAt) || 0);
   if (lastInteraction > 0) {
     const hoursIdle = Math.max(0, (now - lastInteraction) / 3600000);
-    if (hoursIdle >= 6) {
+    if (applyIdleDecay && hoursIdle >= 6) {
       const decaySteps = Math.min(12, Math.floor((hoursIdle - 6) / 6) + 1);
       roleState.jealousy = clamp(roleState.jealousy - 0.018 * decaySteps, 0, 1);
       roleState.distanceScore = clamp(roleState.distanceScore - 0.012 * decaySteps, 0, 1);
@@ -1740,9 +2052,11 @@ function reconcileNpcRoleState(profileId) {
   return roleState;
 }
 
-function getNpcConversationHint(profileId, { includeRelationshipStage = true } = {}) {
-  const memory = getNpcMemory(profileId);
-  const stage = includeRelationshipStage ? getRelationshipStage(profileId) : "new";
+function getNpcConversationHint(profileId, { includeRelationshipStage = true, readOnly = false } = {}) {
+  const memory = readOnly
+    ? (state.conversationMemories?.[profileId] || { topics: [] })
+    : getConversationMemory(profileId);
+  const stage = includeRelationshipStage ? getRelationshipStage(profileId, { readOnly }) : "new";
   const topics = memory.topics?.slice(-3) || [];
   if (topics.length) return `Продолжай естественно одну из уже знакомых тем: ${topics.join(", ")}. Не перечисляй темы механически.`;
   if (stage === "new") return "Поддержи лёгкое знакомство и не форсируй близость.";
@@ -1777,35 +2091,52 @@ function buildWorldMemory() {
 
 function buildNpcContext(profileId, situation = {}) {
   const profile = getProfileById(profileId);
-  reconcileNpcRoleState(profileId);
-  const chat = ensureChat(profileId);
-  const memory = getNpcMemory(profileId);
-  const relationship = getRelationshipMemory(profileId);
+  const chat = state.chats?.[profileId] || { messages: [] };
+  const npcMemory = state.npcMemories?.[profileId] || createMemoryBucket();
+  const playerMemory = state.playerMemories?.[profileId] || createMemoryBucket();
+  const conversationMemory = state.conversationMemories?.[profileId] || createMemoryBucket();
+  const relationship = state.relationshipMemory?.[profileId] || {
+    trust: 0, attraction: 0, familiarity: 0, sentiment: 0,
+    interactionCount: 0, positiveInteractions: 0, negativeInteractions: 0,
+    lastInteractionFrom: "", lastInteractionAt: 0, summary: "Нового знакомства пока нет.",
+  };
   const settings = extension_settings[extensionName]?.memory || DEFAULT_MEMORY_SETTINGS;
   const limit = clamp(Number(settings.contextMessages) || 30, 5, 100);
   const chatLimit = clamp(Number(settings.chatMemory) || 30, 5, 100);
-  const messages = chat.messages.slice(-Math.min(limit, chatLimit));
+  const sourceMessages = Array.isArray(chat.messages) ? chat.messages : [];
+  const messages = sourceMessages.slice(-Math.min(limit, chatLimit));
 
-  messages.filter(m => m?.from === "me").forEach(rememberPlayerMessage.bind(null, profileId));
   const memoryPayload = settings.autoMemory ? {
-    summary: memory.summary || "",
-    facts: memory.facts || [],
-    topics: memory.topics || [],
-    preferences: memory.preferences || [],
-    emotionalNotes: memory.emotionalNotes || [],
+    player: {
+      summary: playerMemory.summary || "",
+      facts: playerMemory.facts || [],
+      topics: playerMemory.topics || [],
+      preferences: playerMemory.preferences || [],
+      emotionalNotes: playerMemory.emotionalNotes || [],
+    },
+    npc: {
+      summary: npcMemory.summary || "",
+      topics: npcMemory.topics || [],
+      emotionalNotes: npcMemory.emotionalNotes || [],
+    },
+    conversation: {
+      summary: conversationMemory.summary || "",
+      topics: conversationMemory.topics || [],
+      emotionalNotes: conversationMemory.emotionalNotes || [],
+    },
   } : null;
 
   return {
     recentConversation: messages,
     memory: memoryPayload,
-    relationship: settings.sendRelationshipMemory ? { ...relationship, stage: getRelationshipStage(profileId) } : null,
+    relationship: settings.sendRelationshipMemory ? { ...relationship, stage: getRelationshipStage(profileId, { readOnly: true }) } : null,
     npcSocialContext: settings.sendRelationshipMemory ? describeNpcRelationshipsForContext(profileId) : [],
     revelation: profile?.deceptionProfile || { revealed: [], discrepancies: [] },
     visualProfile: settings.sendVisualProfile ? buildVisualProfile(profile) : null,
     world: settings.sendWorldMemory ? buildWorldMemory() : null,
     playerProfile: settings.sendPlayerProfile ? (extension_settings[extensionName]?.playerProfile || {}) : null,
-    conversationHint: getNpcConversationHint(profileId, { includeRelationshipStage: settings.sendRelationshipMemory }),
-    relationshipStage: settings.sendRelationshipMemory ? getRelationshipStage(profileId) : null,
+    conversationHint: getNpcConversationHint(profileId, { includeRelationshipStage: settings.sendRelationshipMemory, readOnly: true }),
+    relationshipStage: settings.sendRelationshipMemory ? getRelationshipStage(profileId, { readOnly: true }) : null,
     situation,
   };
 }
@@ -2154,23 +2485,57 @@ function advanceDateWithNpc(profileId, inputText = "") {
   if (!profile) return null;
   const date = ensureDateSimulation(profileId);
   if (date.status !== "active") return null;
-  const relationship = getRelationshipMemory(profileId);
-  const deception = ensureDeceptionProfile(profile);
+
+  const relationshipBefore = { ...getRelationshipMemory(profileId) };
   const scene = buildDateSceneSituation(profileId);
-  const reaction = pickReactionForSituation(profileId, { text: inputText || scene.observation, observation: scene.observation, reason: "date_scene" });
+  const reaction = pickReactionForSituation(profileId, {
+    text: inputText || scene.observation,
+    observation: scene.observation,
+    reason: "date_scene",
+  });
+
   date.observations.push(scene.observation);
   date.emotions.push(reaction);
   date.lastReaction = reaction;
+
+  // Discovery is now based on suspicion/observation instead of automatic scene reveal.
   if (scene.discrepancyField) {
-    const revealed = revealDateDiscrepancy(profileId, scene.discrepancyField, { observation: scene.observation });
-    if (revealed) date.discovered.push(scene.discrepancyField);
+    const curiosity = inputText ? Math.min(inputText.length / 300, 0.2) : 0;
+    const discoveryChance = clamp(
+      0.15 + relationshipBefore.trust * 0.18 + relationshipBefore.familiarity * 0.2 + curiosity,
+      0.05,
+      0.75
+    );
+    if (Math.random() <= discoveryChance) {
+      const revealed = revealDateDiscrepancy(profileId, scene.discrepancyField, {
+        observation: scene.observation,
+        trigger: "date_discovery",
+      });
+      if (revealed) date.discovered.push(scene.discrepancyField);
+    }
   }
+
+  // Player behaviour influences the date outcome.
+  const text = String(inputText || "").toLowerCase();
+  date.playerActions ||= [];
+  const actionScore = (text.match(/спасибо|интересно|нравится|понимаю|расскажи/g) || []).length * 0.03 -
+    (text.match(/нет|бред|ложь|зачем ты|ужас/g) || []).length * 0.04;
+  date.playerActions.push({ text: inputText.slice(0, 120), score: actionScore, at: Date.now() });
+
   date.sceneIndex += 1;
-  const outcomeScore = relationship.trust * 0.4 + relationship.attraction * 0.35 + relationship.sentiment * 0.25 - (date.discovered.length * 0.03);
   if (date.sceneIndex >= 3) {
+    const relationshipAfter = getRelationshipMemory(profileId);
+    const outcomeScore =
+      relationshipAfter.trust * 0.35 +
+      relationshipAfter.attraction * 0.3 +
+      relationshipAfter.sentiment * 0.2 +
+      date.playerActions.reduce((sum, item) => sum + item.score, 0) -
+      date.discovered.length * 0.04;
+
     date.status = "finished";
     date.outcome = outcomeScore > 0.45 ? "very_positive" : outcomeScore > 0.12 ? "positive" : outcomeScore < -0.2 ? "negative" : "mixed";
     applyDateOutcomeToRelationship(profileId, date.outcome);
+
     if (state.activeDate?.profileId === profileId) {
       state.activeDate = null;
       void clearDatePromptInjection();
@@ -2178,6 +2543,7 @@ function advanceDateWithNpc(profileId, inputText = "") {
   } else if (state.activeDate?.profileId === profileId && state.activeDate.status === "active") {
     void setDatePromptInjection(profileId);
   }
+
   saveChatState();
   return { scene, reaction, date, profile };
 }
@@ -2245,12 +2611,34 @@ function advanceRevelationState(profileId, { relationship = getRelationshipMemor
   return newlyRevealed;
 }
 
-function detectDiscoveryOpportunity(profileId, text = "") {
-  const normalized = String(text).toLowerCase();
-  if (!/(расскажи|почему|на самом деле|правда|скрыва|секрет|честно|личн|что ты чувствуешь|чего ты боишься)/.test(normalized)) {
-    return [];
-  }
+function isRelevantRevelationQuestion(text, discrepancy) {
+  const normalized = String(text || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .trim();
+  if (!normalized || !/[?？]/.test(normalized)) return false;
 
+  const commonPersonal = /(о\s+тебе|о\s+себе|про\s+тебя|про\s+себя|личн(?:ое|ого|ом)?|на\s+самом\s+деле|что\s+ты\s+чувствуешь)/i;
+  const fieldPatterns = {
+    hiddenFact: [
+      /(что\s+ты\s+скрыва(?:ешь|ла|л)?|есть\s+ли\s+у\s+тебя\s+секрет|какой\s+у\s+тебя\s+секрет)/i,
+      /(что\s+ты\s+не\s+рассказыва(?:ешь|ла|л)?|есть\s+ли\s+что-то\s+о\s+чем\s+ты\s+молчишь)/i,
+      /(что\s+у\s+тебя\s+на\s+самом\s+деле)/i,
+      commonPersonal,
+    ],
+    vulnerableTopic: [
+      /(чего\s+ты\s+боишься|что\s+тебе\s+страшно|что\s+тебя\s+ранит|что\s+тебе\s+тяжело)/i,
+      /(о\s+чем\s+тебе\s+сложно\s+говорить|что\s+тебе\s+сложно\s+обсуждать)/i,
+      /(в\s+чем\s+ты\s+уязвим(?:а|о)?|какая\s+у\s+тебя\s+уязвимость)/i,
+      /(чувствуешь\s+себя\s+уязвим(?:ым|ой)?)/i,
+    ],
+  };
+
+  const patterns = fieldPatterns[discrepancy?.field] || [];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function detectDiscoveryOpportunity(profileId, text = "") {
   const profile = getProfileById(profileId);
   if (!profile) return [];
   const relationship = getRelationshipMemory(profileId);
@@ -2259,13 +2647,13 @@ function detectDiscoveryOpportunity(profileId, text = "") {
 
   for (const discrepancy of system.discrepancies) {
     if (system.revealed.includes(discrepancy.field)) continue;
+    if (!isRelevantRevelationQuestion(text, discrepancy)) continue;
     const readiness = relationship.interactionCount + Math.max(0, relationship.trust) * 4 + Math.max(0, relationship.familiarity) * 6;
     const threshold = Math.max(2, (Number(discrepancy.threshold) || 4) - 2);
     if (readiness >= threshold) {
       const result = revealProfileDiscrepancy(profileId, discrepancy.field, { trigger: "direct_question" });
       if (result) revealed.push(result);
     }
-    break;
   }
   return revealed;
 }
@@ -2347,7 +2735,45 @@ function ensurePublicProfileForNpc(profile) {
   return profile;
 }
 
+
+function pruneDynamicDatingProfiles(maxStored = 100) {
+  const entries = Object.entries(state.dynamicProfiles || {});
+  if (entries.length <= maxStored) return;
+
+  const protectedIds = new Set([
+    ...state.liked,
+    ...state.skipped,
+    ...Object.keys(state.chats || {}),
+    ...Object.keys(state.npcMemories || {}),
+    ...Object.keys(state.unreadInteractions || {}),
+    ...Object.values(state.npcRelationships || {}).flatMap(item => Array.isArray(item?.participants) ? item.participants : []),
+    ...Object.keys(state.dateStates || {}),
+  ]);
+
+  const removable = entries
+    .filter(([id]) => !protectedIds.has(id))
+    .slice(0, Math.max(0, entries.length - maxStored));
+
+  removable.forEach(([id]) => {
+    delete state.dynamicProfiles[id];
+  });
+}
+
+function hasSimilarDynamicProfile(profile) {
+  if (!profile) return false;
+  const existing = Object.values(state.dynamicProfiles || {});
+  return existing.some(item => {
+    if (!item) return false;
+    const sameName = item.name === profile.name;
+    const sameCity = item.city === profile.city;
+    const sameAge = item.age === profile.age;
+    const sameJob = item.occupation === profile.occupation;
+    return sameName && sameCity && sameAge && sameJob;
+  });
+}
+
 function ensureDynamicDatingPool(minUnseen = 5) {
+  pruneDynamicDatingProfiles();
   const all = Object.values(state.dynamicProfiles || {});
   const unseenDynamic = all.filter(profile => !state.liked.includes(profile.id) && !state.skipped.includes(profile.id));
   if (unseenDynamic.length >= minUnseen) return;
@@ -2356,14 +2782,28 @@ function ensureDynamicDatingPool(minUnseen = 5) {
   const needed = Math.min(8, Math.max(0, minUnseen - unseenDynamic.length));
   for (let i = 0; i < needed; i += 1) {
     const archetypeId = archetypeIds[Math.floor(Math.random() * archetypeIds.length)];
-    createRandomNpcProfile(archetypeId, Date.now() + i + Math.floor(Math.random() * 100000));
+    let created = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = createRandomNpcProfile(archetypeId, Date.now() + i + attempt + Math.floor(Math.random() * 100000));
+      if (!hasSimilarDynamicProfile(candidate) || attempt === 4) {
+        created = candidate;
+        break;
+      }
+      delete state.dynamicProfiles[candidate.id];
+    }
   }
 }
 
 function getDatingProfiles() {
   profiles.forEach(ensurePublicProfileForNpc);
   Object.values(state.dynamicProfiles || {}).forEach(ensurePublicProfileForNpc);
-  return [...profiles, ...Object.values(state.dynamicProfiles || {})];
+
+  // New generated profiles are shown first. This keeps the dating feed feeling
+  // alive after long test sessions instead of repeatedly cycling old entries.
+  const dynamic = Object.values(state.dynamicProfiles || {})
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+
+  return [...dynamic, ...profiles];
 }
 
 function profileCard(profile) {
@@ -2441,7 +2881,25 @@ function showToast(title, text) {
   }
 }
 
+function archiveViewedDatingProfile(profileId) {
+  const profile = state.dynamicProfiles?.[profileId];
+  if (!profile) return;
+
+  state.datingArchive[profileId] = {
+    ...profile,
+    archivedAt: Date.now(),
+  };
+
+  // Keep active feed smaller. History remains available for future features.
+  delete state.dynamicProfiles[profileId];
+}
+
 function showFeed() {
+  // Keep the normal dating feed populated with persistent dynamic NPCs.
+  // Replenishment is performed before filtering so the feed does not get stuck
+  // after the three built-in profiles have been liked/skipped.
+  ensureDynamicDatingPool(5);
+
   const unseenProfiles = getDatingProfiles().filter(profile => {
     return !state.liked.includes(profile.id) && !state.skipped.includes(profile.id);
   });
@@ -2457,7 +2915,9 @@ function showFeed() {
     return;
   }
 
-  const profile = unseenProfiles[state.currentIndex % unseenProfiles.length];
+  // currentIndex was resetting after every swipe, which could keep returning
+  // the same early entries. Always take the first remaining unseen profile.
+  const profile = unseenProfiles[0];
   ensurePublicProfileForNpc(profile);
 
   $("#vibe_content").html(`
@@ -2472,6 +2932,8 @@ function showFeed() {
 
   $("#vibe_skip").on("click", () => {
     if (!state.skipped.includes(profile.id)) state.skipped.push(profile.id);
+    archiveViewedDatingProfile(profile.id);
+    ensureDynamicDatingPool(5);
     state.currentIndex = 0;
     saveChatState();
     showFeed();
@@ -2479,6 +2941,10 @@ function showFeed() {
 
   $("#vibe_like").on("click", () => {
     if (!state.liked.includes(profile.id)) state.liked.push(profile.id);
+    archiveViewedDatingProfile(profile.id);
+
+    // Keep the generated dating queue alive after every swipe.
+    ensureDynamicDatingPool(5);
 
     // Dating is only like/dislike. A match is announced in Notifications.
     // It does not open a chat automatically.
@@ -2759,29 +3225,308 @@ async function npcSendAutonomousMessage(profile,reason="social_event") {
   }
 }
 
-async function regenerateNpcMessage(profileId, messageId) {
-  const profile=getProfileById(profileId);
-  const chat=state.chats[profileId];
-  if(!profile || !chat || state.generatingChats[profileId]) return;
-  const index=chat.messages.findIndex(m => m.id === messageId && m.from === "them");
-  if(index < 0) return;
-  const originalMessage = { ...chat.messages[index] };
-  chat.messages.splice(index,1);
-  chat.updatedAt=Date.now();
-  Object.values(state.unreadInteractions || {}).forEach(item => {
-    if (item?.type === "chat_message" && item.sourceId === profileId) item.read = true;
+function getChatMessageActionLabel(message, action) {
+  if (action === "delete") return "Удалить сообщение";
+  if (action === "edit") return "Редактировать сообщение";
+  if (action === "regenerate") return "Перегенерировать сообщение";
+  return "Действие с сообщением";
+}
+
+
+function markChatHistoryMutated(profileId, reason = "history_mutation") {
+  const chat = state.chats[profileId];
+  if (!chat) return;
+  chat.historyVersion = (chat.historyVersion || 0) + 1;
+  chat.memoryDirty = true;
+  chat.lastHistoryMutation = { reason, timestamp: Date.now() };
+}
+
+function rebuildRevelationStateFromCurrentHistory(profileId, { persist = false } = {}) {
+  const profile = getProfileById(profileId);
+  const chat = state.chats[profileId];
+  if (!profile || !chat) return [];
+
+  const system = initializeRevelationSystem(profile);
+  if (!system) return [];
+
+  const relationship = getRelationshipMemory(profileId);
+  const readiness = relationship.interactionCount
+    + Math.max(0, relationship.trust) * 4
+    + Math.max(0, relationship.familiarity) * 6;
+  const playerMessages = (Array.isArray(chat.messages) ? chat.messages : [])
+    .filter(message => message?.from === "me");
+
+  const date = state.dateStates[profileId];
+  const dateDiscovered = new Set(Array.isArray(date?.discovered) ? date.discovered : []);
+
+  const revealed = [];
+  for (const discrepancy of system.discrepancies) {
+    const threshold = Number(discrepancy.threshold) || 999;
+    const supportedByProgress = readiness >= threshold;
+    const supportedByDirectQuestion = playerMessages.some(message =>
+      isRelevantRevelationQuestion(message?.text, discrepancy),
+    ) && readiness >= Math.max(2, threshold - 2);
+    const supportedByDate = dateDiscovered.has(discrepancy.field);
+    if (supportedByProgress || supportedByDirectQuestion || supportedByDate) {
+      revealed.push(discrepancy.field);
+    }
+  }
+
+  system.revealed = [...new Set(revealed)];
+
+  const memory = getNpcMemory(profileId);
+  const discoveredRevelations = system.discrepancies
+    .filter(discrepancy => system.revealed.includes(discrepancy.field))
+    .map(discrepancy => `${discrepancy.field}: ${discrepancy.trueValue}`);
+  memory.discovered = [...new Set(discoveredRevelations)].slice(-30);
+  if (persist) saveChatState();
+
+  return system.revealed;
+}
+
+function rebuildChatDerivedState(profileId, { persist = true } = {}) {
+  const profile = getProfileById(profileId);
+  const chat = state.chats[profileId];
+  if (!profile || !chat) return false;
+
+  state.npcMemories[profileId] = createMemoryBucket({ discovered: [] });
+  state.playerMemories[profileId] = createMemoryBucket();
+  state.conversationMemories[profileId] = createMemoryBucket();
+
+  // Rebuild only the chat-derived role fields. Event-only fields are kept because
+  // they cannot be reconstructed from message history and are not memory-derived.
+  const previousRoleState = state.npcRoleStates[profileId] || {};
+  state.npcRoleStates[profileId] = {
+    lastAction: String(previousRoleState.lastAction || ""),
+    actionCount: Math.max(0, Number(previousRoleState.actionCount) || 0),
+    preferredTopics: Array.isArray(previousRoleState.preferredTopics) ? [...previousRoleState.preferredTopics] : [],
+    roleMood: "neutral",
+    lastEventAt: Math.max(0, Number(previousRoleState.lastEventAt) || 0),
+    positiveStreak: 0,
+    negativeStreak: 0,
+    jealousy: 0,
+    distanceScore: 0,
+    lastPlayerMessageAt: 0,
+  };
+  state.relationshipMemory[profileId] = {
+    trust: 0,
+    attraction: 0,
+    familiarity: 0,
+    sentiment: 0,
+    boundariesRespected: 0,
+    interactionCount: 0,
+    positiveInteractions: 0,
+    negativeInteractions: 0,
+    lastInteractionFrom: "",
+    lastInteractionAt: 0,
+    summary: "Нового знакомства пока нет.",
+    updatedAt: 0,
+  };
+
+  for (const [messageIndex, message] of (Array.isArray(chat.messages) ? chat.messages : []).entries()) {
+    if (!message || !String(message.text || "").trim()) continue;
+    const timestamp = Number(message.timestamp) || (messageIndex + 1);
+    if (message.from === "me") {
+      rememberPlayerMessage(profileId, { ...message, timestamp }, { touchTimestamp: false });
+      updateRelationshipMemory(profileId, {
+        from: "me",
+        text: message.text,
+        messageId: message.id || null,
+        timestamp,
+        persist: false,
+        advanceRevelation: false,
+      });
+    } else if (message.from === "them") {
+      rememberNpcMessage(profileId, { ...message, timestamp }, { touchTimestamp: false });
+      updateRelationshipMemory(profileId, {
+        from: "them",
+        text: message.text,
+        messageId: message.id || null,
+        timestamp,
+        persist: false,
+        advanceRevelation: false,
+      });
+    }
+  }
+
+  const rebuiltMessages = Array.isArray(chat.messages) ? chat.messages : [];
+  const rebuiltLastMessageAt = rebuiltMessages.reduce((max, message, index) => {
+    const timestamp = Number(message?.timestamp) || (index + 1);
+    return Math.max(max, timestamp);
+  }, 0);
+  const rebuiltPlayerMemory = getPlayerMemory(profileId);
+  const rebuiltNpcMemory = getNpcMemory(profileId);
+  const rebuiltConversationMemory = getConversationMemory(profileId);
+  [rebuiltPlayerMemory, rebuiltNpcMemory, rebuiltConversationMemory].forEach(memory => {
+    memory.lastMessageAt = rebuiltLastMessageAt;
+    memory.lastUpdated = rebuiltLastMessageAt;
   });
-  saveChatState();
-  state.generatingChats[profileId]=true;
-  showChat(profile);
+
+  const roleState = ensureNpcRoleState(profile);
+  if (roleState) {
+    // No wall-clock decay during rebuild: the same history must yield the same state.
+    reconcileNpcRoleState(profileId, { applyIdleDecay: false });
+  }
+
+  rebuildRevelationStateFromCurrentHistory(profileId, { persist: false });
+  state.relationshipMemory[profileId].updatedAt = rebuiltLastMessageAt;
+  chat.memoryDirty = false;
+  chat.memoryRebuiltAt = rebuiltLastMessageAt;
+  if (persist) saveChatState();
+  return true;
+}
+function cloneStateValue(value) {
+  if (value == null) return value;
   try {
-    const reply=await generateNpcReply(profileId,{regenerate:true, replacesMessageId:messageId});
-    addIncomingMessage(profileId,reply,{ updateRelationship: false });
-  } catch(error) {
-    chat.messages.splice(index,0,originalMessage);
-    chat.updatedAt=Date.now();
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    console.warn("[Vibe] Failed to clone state snapshot:", error);
+    return value;
+  }
+}
+
+function captureChatDerivedSnapshot(profileId) {
+  const chat = state.chats[profileId];
+  return {
+    chat: cloneStateValue(chat),
+    npcMemory: cloneStateValue(state.npcMemories[profileId]),
+    playerMemory: cloneStateValue(state.playerMemories[profileId]),
+    conversationMemory: cloneStateValue(state.conversationMemories[profileId]),
+    relationshipMemory: cloneStateValue(state.relationshipMemory[profileId]),
+    npcRoleState: cloneStateValue(state.npcRoleStates[profileId]),
+    unreadInteractions: cloneStateValue(state.unreadInteractions),
+  };
+}
+
+function restoreChatDerivedSnapshot(profileId, snapshot) {
+  if (!snapshot) return;
+  if (snapshot.chat) state.chats[profileId] = snapshot.chat;
+  else delete state.chats[profileId];
+  if (snapshot.npcMemory) state.npcMemories[profileId] = snapshot.npcMemory;
+  else delete state.npcMemories[profileId];
+  if (snapshot.playerMemory) state.playerMemories[profileId] = snapshot.playerMemory;
+  else delete state.playerMemories[profileId];
+  if (snapshot.conversationMemory) state.conversationMemories[profileId] = snapshot.conversationMemory;
+  else delete state.conversationMemories[profileId];
+  if (snapshot.relationshipMemory) state.relationshipMemory[profileId] = snapshot.relationshipMemory;
+  else delete state.relationshipMemory[profileId];
+  if (snapshot.npcRoleState) state.npcRoleStates[profileId] = snapshot.npcRoleState;
+  else delete state.npcRoleStates[profileId];
+  state.unreadInteractions = snapshot.unreadInteractions || {};
+}
+
+function deleteChatMessage(profileId, messageId) {
+  const profile = getProfileById(profileId);
+  const chat = state.chats[profileId];
+  if (!profile || !chat) return false;
+  const index = chat.messages.findIndex(m => m.id === messageId);
+  if (index < 0) return false;
+  const message = chat.messages[index];
+  if (!window.confirm(`Удалить сообщение ${message.from === "me" ? "пользователя" : profile.name}?`)) return false;
+  chat.messages.splice(index, 1);
+  appendEventLog("MESSAGE_DELETED", { profileId, messageId, from: message.from });
+  markChatHistoryMutated(profileId, "delete_message");
+  rebuildChatDerivedState(profileId, { persist: false });
+  chat.updatedAt = Date.now();
+  saveChatState();
+  showChat(profile);
+  return true;
+}
+
+function beginEditChatMessage(profileId, messageId) {
+  const profile = getProfileById(profileId);
+  const chat = state.chats[profileId];
+  if (!profile || !chat) return;
+  const message = chat.messages.find(m => m.id === messageId && m.from === "me");
+  if (!message) return;
+  const bubble = $(`.vibe-message[data-message-id="${messageId}"]`);
+  const row = bubble.closest(".vibe-message-row");
+  if (!row.length || row.find(".vibe-message-editor").length) return;
+  row.addClass("vibe-message-row-editing");
+  bubble.addClass("vibe-message-editing").html(`
+    <textarea class="vibe-message-editor" rows="2" aria-label="Редактировать сообщение">${escapeHtml(message.text)}</textarea>
+    <div class="vibe-message-edit-actions">
+      <button type="button" class="vibe-message-edit-cancel">Отмена</button>
+      <button type="button" class="vibe-message-edit-save">Сохранить</button>
+    </div>
+  `);
+  const editor = row.find(".vibe-message-editor");
+  editor.trigger("focus");
+  const length = editor.val().length;
+  editor[0]?.setSelectionRange(length, length);
+
+  row.find(".vibe-message-edit-cancel").on("click", () => showChat(profile));
+  row.find(".vibe-message-edit-save").on("click", () => {
+    const nextText = String(editor.val() || "").trim();
+    if (!nextText) {
+      showToast("Сообщение", "Нельзя сохранить пустое сообщение.");
+      editor.trigger("focus");
+      return;
+    }
+    if (!message.editHistory) message.editHistory = [];
+    message.editHistory.push({ text: message.text, timestamp: Date.now() });
+    message.originalText = message.originalText || message.text;
+    message.text = nextText;
+    markChatHistoryMutated(profileId, "edit_message");
+    message.edited = true;
+    message.editedAt = Date.now();
+    appendEventLog("MESSAGE_EDITED", { profileId, messageId, from: "me" });
+    rebuildChatDerivedState(profileId, { persist: false });
+    chat.updatedAt = Date.now();
     saveChatState();
-    showToast("ИИ",`${profile.name}: ${error.message||"не удалось перегенерировать сообщение"}`);
+    showChat(profile);
+  });
+  editor.on("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      row.find(".vibe-message-edit-save").trigger("click");
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      row.find(".vibe-message-edit-cancel").trigger("click");
+    }
+  });
+}
+
+async function regenerateNpcMessage(profileId, messageId) {
+  const profile = getProfileById(profileId);
+  const chat = state.chats[profileId];
+  if (!profile || !chat || state.generatingChats[profileId]) return;
+  const index = chat.messages.findIndex(m => m.id === messageId && m.from === "them");
+  if (index < 0) return;
+  const originalMessage = cloneStateValue(chat.messages[index]);
+  if (!window.confirm(`Перегенерировать сообщение ${profile.name}? Текущий вариант будет заменён.`)) return;
+
+  const snapshot = captureChatDerivedSnapshot(profileId);
+  appendEventLog("MESSAGE_REGENERATED", { profileId, messageId, phase: "started" });
+  state.generatingChats[profileId] = true;
+  try {
+    chat.messages.splice(index, 1);
+    markChatHistoryMutated(profileId, "regenerate_remove");
+    rebuildChatDerivedState(profileId, { persist: false });
+    chat.updatedAt = Date.now();
+    Object.values(state.unreadInteractions || {}).forEach(item => {
+      if (item?.type === "chat_message" && item.sourceId === profileId) item.read = true;
+    });
+    saveChatState();
+    showChat(profile);
+
+    const reply = await generateNpcReply(profileId, { regenerate: true, replacesMessageId: messageId });
+    chat.messages.splice(index, 0, {
+      id: messageId,
+      from: "them",
+      text: reply,
+      timestamp: Date.now(),
+      regenerated: true,
+    });
+    markChatHistoryMutated(profileId, "regenerate_complete");
+    rebuildChatDerivedState(profileId, { persist: false });
+    chat.updatedAt = Date.now();
+    saveChatState();
+  } catch(error) {
+    restoreChatDerivedSnapshot(profileId, snapshot);
+    saveChatState();
+    showToast("ИИ", `${profile.name}: ${error.message || "не удалось перегенерировать сообщение"}`);
   } finally {
     delete state.generatingChats[profileId];
     showChat(profile);
@@ -2789,14 +3534,28 @@ async function regenerateNpcMessage(profileId, messageId) {
 }
 
 function renderChatMessageRows(profile, messages) {
-  return messages.map(m => `
-    <div class="vibe-message-row ${m.from === "me" ? "vibe-message-row-me" : "vibe-message-row-them"}">
-      <div class="vibe-message ${m.from === "me" ? "vibe-message-me" : "vibe-message-them"} ${m.regenerating ? "vibe-message-regenerating" : ""}">
-        ${escapeHtml(m.text)}
+  return messages.map(m => {
+    const mine = m.from === "me";
+    const edited = m.edited ? `<span class="vibe-message-meta">изменено</span>` : "";
+    const actions = mine ? `
+      <div class="vibe-msg-actions" role="group" aria-label="Действия с сообщением">
+        <button type="button" class="vibe-msg-btn vibe-message-edit" data-message-id="${escapeHtml(m.id)}" aria-label="${getChatMessageActionLabel(m, "edit")}" title="Редактировать">✎</button>
+        <button type="button" class="vibe-msg-btn vibe-message-delete" data-message-id="${escapeHtml(m.id)}" aria-label="${getChatMessageActionLabel(m, "delete")}" title="Удалить">×</button>
+      </div>` : `
+      <div class="vibe-msg-actions" role="group" aria-label="Действия с сообщением">
+        <button type="button" class="vibe-msg-btn vibe-message-regenerate" data-message-id="${escapeHtml(m.id)}" aria-label="${getChatMessageActionLabel(m, "regenerate")}" title="Перегенерировать">↻</button>
+        <button type="button" class="vibe-msg-btn vibe-message-delete" data-message-id="${escapeHtml(m.id)}" aria-label="${getChatMessageActionLabel(m, "delete")}" title="Удалить">×</button>
+      </div>`;
+    return `
+      <div class="vibe-message-row ${mine ? "vibe-message-row-me" : "vibe-message-row-them"}" data-message-id="${escapeHtml(m.id)}">
+        ${mine ? actions : ""}
+        <div class="vibe-message ${mine ? "vibe-message-me" : "vibe-message-them"}" data-message-id="${escapeHtml(m.id)}">
+          <span class="vibe-message-text">${escapeHtml(m.text)}</span>${edited}
+        </div>
+        ${mine ? "" : actions}
       </div>
-      ${m.from === "them" ? `<button type="button" class="vibe-message-regenerate" data-message-id="${escapeHtml(m.id)}" aria-label="Перегенерировать сообщение">↻</button>` : ""}
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 
@@ -2902,6 +3661,12 @@ function showChat(profile) {
     }
     showDateScene(profile);
   });
+  $(".vibe-message-delete").on("click", function(){
+    deleteChatMessage(profile.id, $(this).data("message-id"));
+  });
+  $(".vibe-message-edit").on("click", function(){
+    beginEditChatMessage(profile.id, $(this).data("message-id"));
+  });
   $(".vibe-message-regenerate").on("click", function(){
     void regenerateNpcMessage(profile.id, $(this).data("message-id"));
   });
@@ -2913,12 +3678,14 @@ function showChat(profile) {
     if (!text) return;
 
     const chat = ensureChat(profile.id);
+    const playerMessageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     chat.messages.push({
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: playerMessageId,
       from: "me",
       text,
       timestamp: Date.now()
     });
+    appendEventLog("MESSAGE_SENT", { profileId: profile.id, messageId: playerMessageId, from: "me" });
     rememberPlayerMessage(profile.id, { from: "me", text, timestamp: Date.now() });
     updateRelationshipMemory(profile.id, { from: "me", text });
     detectDiscoveryOpportunity(profile.id, text);
@@ -3214,17 +3981,6 @@ function renderPlayerProfileView(profile) {
           ${profile.education ? `<div class="vibe-profile-fact"><strong>Образование</strong><span>${escapeHtml(profile.education)}</span></div>` : ""}
         </div>
 
-        <section class="vibe-profile-card vibe-profile-preview-card">
-          <div class="vibe-profile-card-title">Как вас увидят в знакомствах</div>
-          <div class="vibe-profile-preview-line">
-            <span>${escapeHtml(profile.name || "Имя не указано")}</span>
-            ${profile.age ? `<span>${escapeHtml(String(profile.age))}</span>` : ""}
-            ${profile.city ? `<span>${escapeHtml(profile.city)}</span>` : ""}
-          </div>
-          ${profile.interests.length
-            ? `<div class="vibe-profile-preview-line vibe-profile-preview-muted">${escapeHtml(profile.interests.join(" • "))}</div>`
-            : ""}
-        </section>
       </div>
     </div>
   `);
@@ -3552,6 +4308,21 @@ jQuery(async () => {
     resetDemoState();
   });
 
+  $("#vibe_dev_state_audit").on("click", function (event) {
+    event.preventDefault();
+    const report = runStateAudit();
+    showToast(
+      "State Audit",
+      report.summary.valid ? "Состояние корректно." : `Найдено проблем: ${report.summary.totalIssues}`,
+    );
+  });
+
+  $("#vibe_dev_export_audit").on("click", function (event) {
+    event.preventDefault();
+    exportStateAuditReport();
+    showToast("State Audit", "Отчёт сохранён в JSON.");
+  });
+
   $("#vibe_widget_size").on("input change", function () {
     const size = clamp(Number($(this).val()), 24, 160);
 
@@ -3613,19 +4384,3 @@ jQuery(async () => {
   window.setInterval(() => { void tickNpcSimulation(); }, 90_000);
 });
 
-
-function deleteMessageById(chat,id){
- if(!chat?.messages)return;
- chat.messages=chat.messages.filter(m=>m.id!==id);
- saveSettingsDebounced?.();
-}
-async function regenerateMessage(chat,id){
- const i=chat.messages.findIndex(m=>m.id===id);
- if(i<0)return;
- const target=chat.messages[i];
- if(target.role!=='assistant')return;
- const context=chat.messages.slice(0,i);
- const reply=await generateChatReply(context);
- chat.messages[i]={...target,text:reply,regenerated:true};
- saveSettingsDebounced?.();
-}
